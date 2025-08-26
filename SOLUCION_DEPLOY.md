@@ -30,8 +30,8 @@ tsc && vite build
 **IMPORTANTE:** Configura estas variables en Netlify ANTES del deploy:
 
 ```
-VITE_GOOGLE_MAPS_API_KEY=AlzaSyAfI7Ja483LWfUaYyieuRDQRsKs4sdP8vQ
-VITE_OPENWEATHER_API_KEY=fb91fbfe1192212a0596d78e46553858
+VITE_GOOGLE_MAPS_API_KEY=[TU_API_KEY_DE_GOOGLE_MAPS]
+VITE_OPENWEATHER_API_KEY=[TU_API_KEY_DE_OPENWEATHER]
 ```
 
 ### **Solución 3: Verificar Configuración de Netlify**

@@ -4,12 +4,12 @@
 
 ### **Google Maps API Key:**
 ```
-AlzaSyAfI7Ja483LWfUaYyieuRDQRsKs4sdP8vQ
+[TU_API_KEY_DE_GOOGLE_MAPS]
 ```
 
 ### **OpenWeather API Key:**
 ```
-fb91fbfe1192212a0596d78e46553858
+[TU_API_KEY_DE_OPENWEATHER]
 ```
 
 ## 🌐 **PASO 1: Configurar Google Maps API**
@@ -25,7 +25,7 @@ fb91fbfe1192212a0596d78e46553858
 
 ### **1.2 Configurar Restricciones de la API Key**
 1. Ve a "APIs & Services" → "Credentials"
-2. Haz clic en tu API key: `AlzaSyAfI7Ja483LWfUaYyieuRDQRsKs4sdP8vQ`
+2. Haz clic en tu API key: `[TU_API_KEY_DE_GOOGLE_MAPS]`
 3. En "Application restrictions" selecciona "HTTP referrers"
 4. Agrega: `*.netlify.app`
 5. En "API restrictions" selecciona las APIs que habilitaste
@@ -52,8 +52,8 @@ Netlify debería detectar automáticamente:
 2. Agrega estas variables exactamente como están:
 
 ```
-VITE_GOOGLE_MAPS_API_KEY=AlzaSyAfI7Ja483LWfUaYyieuRDQRsKs4sdP8vQ
-VITE_OPENWEATHER_API_KEY=fb91fbfe1192212a0596d78e46553858
+VITE_GOOGLE_MAPS_API_KEY=[TU_API_KEY_DE_GOOGLE_MAPS]
+VITE_OPENWEATHER_API_KEY=[TU_API_KEY_DE_OPENWEATHER]
 ```
 
 ### **2.4 Hacer el Deploy**

@@ -4,12 +4,12 @@
 
 ### **Google Maps API Key**
 ```
-AlzaSyAfI7Ja483LWfUaYyieuRDQRsKs4sdP8vQ
+[TU_API_KEY_DE_GOOGLE_MAPS]
 ```
 
 ### **OpenWeather API Key**
 ```
-fb91fbfe1192212a0596d78e46553858
+[TU_API_KEY_DE_OPENWEATHER]
 ```
 
 ## 🌐 **Configuración para Netlify**
@@ -19,8 +19,8 @@ fb91fbfe1192212a0596d78e46553858
 Cuando hagas el deploy en Netlify, configura estas variables de entorno:
 
 ```
-VITE_GOOGLE_MAPS_API_KEY=AlzaSyAfI7Ja483LWfUaYyieuRDQRsKs4sdP8vQ
-VITE_OPENWEATHER_API_KEY=fb91fbfe1192212a0596d78e46553858
+VITE_GOOGLE_MAPS_API_KEY=[TU_API_KEY_DE_GOOGLE_MAPS]
+VITE_OPENWEATHER_API_KEY=[TU_API_KEY_DE_OPENWEATHER]
 ```
 
 ## 🔧 **Pasos Restantes**
@@ -55,8 +55,8 @@ VITE_OPENWEATHER_API_KEY=fb91fbfe1192212a0596d78e46553858
 
 ### **Variables de Entorno Finales:**
 ```
-VITE_GOOGLE_MAPS_API_KEY=AlzaSyAfI7Ja483LWfUaYyieuRDQRsKs4sdP8vQ
-VITE_OPENWEATHER_API_KEY=fb91fbfe1192212a0596d78e46553858
+VITE_GOOGLE_MAPS_API_KEY=[TU_API_KEY_DE_GOOGLE_MAPS]
+VITE_OPENWEATHER_API_KEY=[TU_API_KEY_DE_OPENWEATHER]
 ```
 
 ## ✅ **Verificación**
