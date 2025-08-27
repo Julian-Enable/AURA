@@ -9,6 +9,7 @@ interface AutocompleteInputProps {
   onChange: (value: string) => void;
   onSelect?: (place: PlacePrediction) => void;
   className?: string;
+  searchType?: 'all' | 'cities' | 'countries';
 }
 
 const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
@@ -18,6 +19,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   onChange,
   onSelect,
   className = '',
+  searchType = 'all',
 }) => {
   const [suggestions, setSuggestions] = useState<PlacePrediction[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -32,7 +34,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
       if (value.length >= 2) {
         setLoading(true);
         try {
-          const predictions = await PlacesService.getAutocompleteSuggestions(value);
+          const predictions = await PlacesService.getAutocompleteSuggestions(value, searchType);
           setSuggestions(predictions);
           setShowSuggestions(predictions.length > 0);
           setSelectedIndex(-1);

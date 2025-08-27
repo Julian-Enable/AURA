@@ -21,19 +21,37 @@ export interface PlacesAutocompleteResponse {
 }
 
 export class PlacesService {
-  static async getAutocompleteSuggestions(input: string): Promise<PlacePrediction[]> {
+  static async getAutocompleteSuggestions(input: string, searchType: 'all' | 'cities' | 'countries' = 'all'): Promise<PlacePrediction[]> {
     try {
       if (!input || input.length < 2) {
         return [];
+      }
+
+      // Configurar tipos de búsqueda según el parámetro
+      let types = '(regions)'; // Por defecto incluye países, estados, ciudades
+      let components = undefined;
+
+      switch (searchType) {
+        case 'cities':
+          types = '(cities)';
+          components = 'country:mx'; // Priorizar ciudades de México
+          break;
+        case 'countries':
+          types = '(regions)'; // regions incluye países
+          break;
+        case 'all':
+        default:
+          types = '(regions)'; // Incluye países, estados, ciudades
+          break;
       }
 
       const response = await placesClient.get<PlacesAutocompleteResponse>('/autocomplete/json', {
         params: {
           input,
           key: config.GOOGLE_MAPS_API_KEY,
-          types: '(cities)', // Solo ciudades
+          types,
           language: 'es', // Español
-          components: 'country:mx', // Priorizar México
+          ...(components && { components }), // Solo incluir components si está definido
         },
       });
 
@@ -56,7 +74,7 @@ export class PlacesService {
           key: config.GOOGLE_MAPS_API_KEY,
           fields: 'geometry',
         },
-      });
+      }); 
 
       if (response.data.status === 'OK' && response.data.result.geometry) {
         const { lat, lng } = response.data.result.geometry.location;

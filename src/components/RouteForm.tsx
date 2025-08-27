@@ -37,10 +37,11 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, loading }) => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <AutocompleteInput
           label="Punto de Origen"
-          placeholder="Ej: Ciudad de México"
+          placeholder="Ej: Ciudad de México, México"
           value={origin}
           onChange={setOrigin}
           onSelect={handleOriginSelect}
+          searchType="all"
         />
 
         <AutocompleteInput
@@ -49,6 +50,7 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, loading }) => {
           value={destination}
           onChange={setDestination}
           onSelect={handleDestinationSelect}
+          searchType="all"
         />
 
         <button
