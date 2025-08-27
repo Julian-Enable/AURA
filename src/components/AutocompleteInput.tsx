@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin } from 'lucide-react';
-import { searchPlaces } from '../services/places';
+import { MapPin, Navigation } from 'lucide-react';
+import { searchPlaces, getLocationName } from '../services/places';
 import { Place } from '../types';
 
 interface AutocompleteInputProps {
@@ -23,6 +23,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [lastSearchValue, setLastSearchValue] = useState('');
   const [justSelected, setJustSelected] = useState(false);
@@ -150,6 +151,86 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     }
   };
 
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Tu navegador no soporta geolocalización');
+      return;
+    }
+
+    setGpsLoading(true);
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const coords = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          
+          // Obtener el nombre del lugar usando geocodificación inversa
+          const locationName = await getLocationName(coords);
+          
+          // Marcar que acabamos de seleccionar
+          setJustSelected(true);
+          
+          // Auto-llenar el campo
+          onChange(locationName);
+          setLastSearchValue(locationName);
+          
+          // Crear objeto Place para el callback
+          const currentLocationPlace: Place = {
+            name: locationName,
+            displayName: locationName,
+            fullAddress: locationName,
+            coordinates: coords,
+            country: '',
+            state: '',
+            city: '',
+            placeType: 'Mi ubicación'
+          };
+          
+          // Callback de selección
+          if (onSelect) {
+            onSelect(currentLocationPlace);
+          }
+          
+          // Limpiar sugerencias
+          setSuggestions([]);
+          setShowSuggestions(false);
+          
+        } catch (error) {
+          console.error('Error obteniendo nombre de ubicación:', error);
+          alert('Error al obtener la información de tu ubicación');
+        } finally {
+          setGpsLoading(false);
+        }
+      },
+      (error) => {
+        console.error('Error GPS:', error);
+        setGpsLoading(false);
+        
+        let errorMessage = 'Error al obtener tu ubicación';
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Permisos de ubicación denegados. Por favor, permite el acceso a tu ubicación.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Ubicación no disponible. Verifica que tu GPS esté activado.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Tiempo de espera agotado. Inténtalo de nuevo.';
+            break;
+        }
+        alert(errorMessage);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000 // 5 minutos de cache
+      }
+    );
+  };
+
   return (
     <div className={`relative ${className}`}>
       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -172,10 +253,27 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
             }
           }}
           placeholder={placeholder}
-          className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aura-blue focus:border-aura-blue transition-colors"
+          className="block w-full pl-10 pr-20 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aura-blue focus:border-aura-blue transition-colors"
         />
-        {loading && (
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+        
+        {/* Botón GPS */}
+        <button
+          type="button"
+          onClick={handleGetCurrentLocation}
+          disabled={gpsLoading || loading}
+          className="absolute inset-y-0 right-10 px-2 flex items-center hover:bg-gray-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Usar mi ubicación actual"
+        >
+          {gpsLoading ? (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-aura-blue"></div>
+          ) : (
+            <Navigation className="h-4 w-4 text-aura-blue hover:text-aura-blue-dark" />
+          )}
+        </button>
+        
+        {/* Loading indicator para búsqueda */}
+        {loading && !gpsLoading && (
+          <div className="absolute inset-y-0 right-3 pr-3 flex items-center">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-aura-blue"></div>
           </div>
         )}

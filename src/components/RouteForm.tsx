@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapPin, Search, Loader2 } from 'lucide-react';
 import AutocompleteInput from './AutocompleteInput';
 import { Place } from '../types';
 
 interface RouteFormProps {
-  onSearch: (origin: string, destination: string, originPlace?: Place, destinationPlace?: Place) => void;
+  onSearch: (origin: string, destination: string, originPlace?: Place, destinationPlace?: Place, departureTime?: Date) => void;
   onOriginSelect?: (place: Place) => void;
   loading: boolean;
 }
@@ -14,15 +14,44 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
   const [destination, setDestination] = useState('');
   const [selectedOriginPlace, setSelectedOriginPlace] = useState<Place | null>(null);
   const [selectedDestinationPlace, setSelectedDestinationPlace] = useState<Place | null>(null);
+  
+  // Tiempo por defecto: ahora + 30 minutos (solo al inicializar)
+  const [departureTime, setDepartureTime] = useState(() => {
+    const now = new Date();
+    const defaultTime = new Date(now.getTime() + 30 * 60 * 1000);
+    return defaultTime.toISOString().slice(0, 16);
+  });
+  
+  // Calcular el tiempo mínimo en tiempo real (se actualiza en cada render)
+  const minDateTime = new Date().toISOString().slice(0, 16);
+  
+  // Si el tiempo seleccionado está en el pasado, actualizarlo
+  useEffect(() => {
+    if (departureTime < minDateTime) {
+      const newTime = new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 16);
+      setDepartureTime(newTime);
+    }
+  }, [minDateTime, departureTime]);
+  
+  // Debug: Ver qué valores tenemos
+  console.log('Valores de tiempo:', {
+    ahora: new Date().toLocaleString(),
+    minDateTime,
+    departureTime,
+    departureTimeAsDate: new Date(departureTime).toLocaleString(),
+    esPasado: departureTime < minDateTime
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (origin.trim() && destination.trim()) {
+      const departure = new Date(departureTime);
       onSearch(
         origin.trim(), 
         destination.trim(), 
         selectedOriginPlace || undefined, 
-        selectedDestinationPlace || undefined
+        selectedDestinationPlace || undefined,
+        departure
       );
     }
   };
@@ -80,6 +109,29 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
           <div className="absolute left-0 top-1/2 w-8 h-8 flex items-center justify-center">
             <div className="w-2 h-2 bg-red-500 rounded-full"></div>
           </div>
+        </div>
+
+        <div className="relative">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Hora de Partida
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <input
+              type="datetime-local"
+              value={departureTime}
+              onChange={(e) => setDepartureTime(e.target.value)}
+              min={minDateTime}
+              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aura-blue focus:border-aura-blue transition-colors"
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            El clima se calculará para esta hora de partida
+          </p>
         </div>
 
         <button

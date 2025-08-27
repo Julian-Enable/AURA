@@ -39,7 +39,7 @@ function App() {
     }
   };
 
-  const handleSearch = async (origin: string, destination: string, originPlace?: Place, destinationPlace?: Place) => {
+  const handleSearch = async (origin: string, destination: string, originPlace?: Place, destinationPlace?: Place, departureTime?: Date) => {
     setLoading(true);
     setError(null);
     
@@ -57,10 +57,10 @@ function App() {
       let route: RouteData;
       if (originPlace && destinationPlace) {
         // Usar lugares específicos si están disponibles
-        route = await RouteService.getRouteFromPlaces(originPlace, destinationPlace);
+        route = await RouteService.getRouteFromPlaces(originPlace, destinationPlace, departureTime);
       } else {
         // Fallback a búsqueda por texto
-        route = await RouteService.getRoute(origin, destination);
+        route = await RouteService.getRoute(origin, destination, departureTime);
       }
       
       setRouteData(route);

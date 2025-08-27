@@ -57,7 +57,7 @@ export class RouteService {
     }
   }
 
-  static async getRoute(originName: string, destinationName: string): Promise<RouteData> {
+  static async getRoute(originName: string, destinationName: string, departureTime?: Date): Promise<RouteData> {
     try {
       // Obtener detalles de los lugares usando Nominatim
       const originResults = await getPlaceDetails(originName);
@@ -70,14 +70,14 @@ export class RouteService {
         throw new Error('No se pudieron encontrar las ubicaciones especificadas');
       }
 
-      return this.getRouteFromPlaces(originResults, destinationResults);
+      return this.getRouteFromPlaces(originResults, destinationResults, departureTime);
     } catch (error) {
       console.error('Error obteniendo ruta:', error);
       throw error;
     }
   }
 
-  static async getRouteFromPlaces(origin: Place, destination: Place): Promise<RouteData> {
+  static async getRouteFromPlaces(origin: Place, destination: Place, departureTime?: Date): Promise<RouteData> {
     try {
       // Guardar el punto de origen
       this.originPoint = origin;
@@ -85,7 +85,7 @@ export class RouteService {
       const route = await getOSRMRoute(origin, destination);
       const totalDistance = route.distance;
       const totalDuration = route.duration;
-      const now = new Date();
+      const now = departureTime || new Date();
       
       // Calcular puntos estratégicos dinámicamente basado en la distancia
       const numWeatherPoints = this.calculateOptimalWeatherPoints(totalDistance);
