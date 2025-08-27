@@ -107,9 +107,9 @@ function App() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 h-[calc(100vh-140px)]">
+        <div className="flex flex-col xl:grid xl:grid-cols-4 gap-6 xl:h-[calc(100vh-140px)]">
           {/* Sidebar - Más compacto */}
-          <div className="xl:col-span-1 space-y-4 overflow-y-auto">
+          <div className="xl:col-span-1 space-y-4 xl:overflow-y-auto">
             <RouteForm 
               onSearch={handleSearch} 
               onOriginSelect={handleOriginSelect}
@@ -123,7 +123,7 @@ function App() {
 
           {/* Map Section - Más grande */}
           <div className="xl:col-span-3">
-            <div className="weather-card map-container h-full">
+            <div className="weather-card map-container h-[400px] md:h-[500px] xl:h-full">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center">
                   <CloudRain className="w-5 h-5 text-aura-blue mr-2" />

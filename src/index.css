@@ -57,15 +57,34 @@
     background: rgba(255, 255, 255, 0.95);
   }
 
-  /* Clase específica para el contenedor del mapa con altura fija */
+  /* Clase específica para el contenedor del mapa con altura responsive */
   .weather-card.map-container {
     @apply bg-white rounded-xl shadow-xl p-6 border border-gray-100;
     backdrop-filter: blur(10px);
     background: rgba(255, 255, 255, 0.95);
-    height: calc(100vh - 160px); /* Altura ajustada para el nuevo header */
-    min-height: 500px;
     display: flex;
     flex-direction: column;
+  }
+
+  /* En XL (desktop) mantiene la altura completa */
+  @media (min-width: 1280px) {
+    .weather-card.map-container {
+      height: calc(100vh - 160px);
+      min-height: 500px;
+    }
+  }
+
+  /* En móvil y tablet usa altura específica */
+  @media (max-width: 1279px) {
+    .weather-card.map-container {
+      height: 400px;
+    }
+  }
+
+  @media (min-width: 768px) and (max-width: 1279px) {
+    .weather-card.map-container {
+      height: 500px;
+    }
   }
 
   /* El mapa debe ocupar todo el espacio restante */
