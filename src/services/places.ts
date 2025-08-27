@@ -21,7 +21,8 @@ export class PlacesService {
         return [];
       }
 
-      const places = await loadGoogleMaps();
+      const maps = await loadGoogleMaps();
+      const autocompleteService = new maps.places.AutocompleteService();
       
       // Configurar los parámetros de búsqueda
       let types: string[];
@@ -41,7 +42,6 @@ export class PlacesService {
           break;
       }
 
-      // Usar la nueva API de Places
       const request = {
         input,
         types,
@@ -49,9 +49,13 @@ export class PlacesService {
         language: 'es',
       };
 
-      const response = await places.searchByText(request);
+      const predictions = await new Promise<google.maps.places.AutocompletePrediction[]>((resolve) => {
+        autocompleteService.getPlacePredictions(request, (results) => {
+          resolve(results || []);
+        });
+      });
       
-      return response.predictions.map(result => ({
+      return predictions.map(result => ({
         place_id: result.place_id,
         description: result.description,
         structured_formatting: {
@@ -67,14 +71,23 @@ export class PlacesService {
 
   static async getPlaceDetails(placeId: string): Promise<{ lat: number; lng: number } | null> {
     try {
-      const places = await loadGoogleMaps();
+      const maps = await loadGoogleMaps();
+      const placesService = new maps.places.PlacesService(document.createElement('div'));
       
       const request = {
         placeId,
         fields: ['geometry']
       };
 
-      const place = await places.fetchFields(request);
+      const place = await new Promise((resolve) => {
+        placesService.getDetails(request, (result, status) => {
+          if (status === 'OK') {
+            resolve(result);
+          } else {
+            resolve(null);
+          }
+        });
+      });
       
       if (place && place.geometry?.location) {
         return {

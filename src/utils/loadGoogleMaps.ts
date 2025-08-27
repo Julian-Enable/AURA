@@ -1,4 +1,5 @@
 import { config } from '../config/env';
+import { Loader } from '@googlemaps/js-api-loader';
 
 declare global {
   interface Window {
@@ -6,24 +7,19 @@ declare global {
   }
 }
 
-let placesPromise: Promise<any> | null = null;
+let mapsPromise: Promise<typeof google.maps> | null = null;
 
 export const loadGoogleMaps = async () => {
-  if (!placesPromise) {
-    // Cargar la biblioteca de Maps
-    const { importLibrary } = await import('@googlemaps/js-api-loader');
-    
-    // Cargar específicamente la biblioteca de Places
-    placesPromise = importLibrary('places')
-      .then(async (places) => {
-        console.log('Places library loaded successfully');
-        return places;
-      })
-      .catch((error) => {
-        console.error('Error loading Places library:', error);
-        throw error;
-      });
+  if (!mapsPromise) {
+    const loader = new Loader({
+      apiKey: config.GOOGLE_MAPS_API_KEY,
+      version: "weekly",
+      libraries: ["places"]
+    });
+
+    mapsPromise = loader.load();
   }
   
-  return placesPromise;
+  await mapsPromise;
+  return window.google.maps;
 };
