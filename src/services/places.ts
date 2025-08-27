@@ -10,7 +10,15 @@ export async function searchPlaces(query: string): Promise<Place[]> {
   if (!query) return [];
   
   try {
-    // Intentar con Nominatim primero
+    // En producción, priorizar Google Maps para mayor confiabilidad
+    if (import.meta.env.PROD && config.GOOGLE_MAPS_API_KEY) {
+      const googleResults = await searchWithGoogleMaps(query);
+      if (googleResults.length > 0) {
+        return googleResults;
+      }
+    }
+    
+    // Intentar con Nominatim primero (desarrollo o fallback)
     const nominatimResults = await searchWithNominatim(query);
     if (nominatimResults.length > 0) {
       return nominatimResults;
@@ -220,7 +228,12 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // Función para obtener el nombre de ubicación con reintentos
 export async function getLocationName(coordinates: Coordinates): Promise<string> {
   try {
-    // Intentar con Nominatim primero
+    // En producción, priorizar Google Maps para mayor confiabilidad
+    if (import.meta.env.PROD && config.GOOGLE_MAPS_API_KEY) {
+      return await getLocationNameFromGoogleMaps(coordinates);
+    }
+    
+    // Intentar con Nominatim primero (desarrollo o fallback)
     const nominatimName = await getLocationNameFromNominatim(coordinates);
     if (nominatimName !== 'Punto en ruta') {
       return nominatimName;

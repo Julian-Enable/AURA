@@ -41,18 +41,23 @@ const SOUTH_AMERICA_TIMEZONES = [
  * Obtiene información de zona horaria usando WorldTimeAPI
  */
 export async function getTimezoneInfo(coordinates: Coordinates): Promise<TimezoneInfo> {
+  // Primero usar mapeo local como base
+  const localGuess = getTimezoneFromLocalMapping(coordinates);
+  
   try {
-    // Intentar con WorldTimeAPI primero
-    const worldTimeInfo = await getTimezoneFromWorldTimeAPI(coordinates);
-    if (worldTimeInfo) {
-      return worldTimeInfo;
+    // Intentar con WorldTimeAPI solo si no estamos en desarrollo
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      const worldTimeInfo = await getTimezoneFromWorldTimeAPI(coordinates);
+      if (worldTimeInfo) {
+        return worldTimeInfo;
+      }
     }
   } catch (error) {
-    console.warn('Error con WorldTimeAPI:', error);
+    console.warn('WorldTimeAPI no disponible, usando mapeo local:', error);
   }
 
-  // Fallback: usar mapeo local
-  return getTimezoneFromLocalMapping(coordinates);
+  // Siempre retornar el mapeo local como fallback confiable
+  return localGuess;
 }
 
 /**
@@ -64,8 +69,13 @@ async function getTimezoneFromWorldTimeAPI(coordinates: Coordinates): Promise<Ti
     // Primero determinar la zona horaria probable usando nuestro mapeo local
     const localGuess = getTimezoneFromLocalMapping(coordinates);
     
-    // Luego verificar/corregir con WorldTimeAPI
-    const response = await fetch(`http://worldtimeapi.org/api/timezone/${localGuess.timezone}`);
+    // Luego verificar/corregir con WorldTimeAPI usando HTTPS
+    const response = await fetch(`https://worldtimeapi.org/api/timezone/${localGuess.timezone}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
     
     if (!response.ok) {
       throw new Error('WorldTimeAPI no disponible');
