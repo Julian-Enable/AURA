@@ -1,23 +1,38 @@
 [build]
   command = "bash netlify-build.sh"
   publish = "dist"
+  functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "18"
+
+[functions]
+  directory = "netlify/functions"
 
 [[redirects]]
   from = "/nominatim/*"
   to = "https://nominatim.openstreetmap.org/:splat"
   status = 200
   force = true
-  headers = {User-Agent = "AURA Weather Route App (https://aur-a.netlify.app)", Accept = "application/json", Accept-Language = "es"}
+  headers = {User-Agent = "AURA-Weather-Route-App/1.0 (+https://aur-a.netlify.app)", Accept = "application/json", Accept-Language = "es"}
 
 [[redirects]]
   from = "/osrm/*"
   to = "https://router.project-osrm.org/:splat"
   status = 200
   force = true
-  headers = {Accept = "application/json", User-Agent = "AURA Weather Route App (https://aur-a.netlify.app)"}
+  headers = {Accept = "application/json", User-Agent = "AURA-Weather-Route-App/1.0 (+https://aur-a.netlify.app)"}
+
+[[redirects]]
+  from = "/gmaps/*"
+  to = "https://maps.googleapis.com/maps/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/maps/*"
+  to = "/.netlify/functions/google-maps"
+  status = 200
 
 [[redirects]]
   from = "/*"

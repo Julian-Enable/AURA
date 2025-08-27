@@ -10,32 +10,60 @@ export async function searchPlaces(query: string): Promise<Place[]> {
   if (!query) return [];
   
   try {
-    // En producción, priorizar Google Maps para mayor confiabilidad
-    if (import.meta.env.PROD && config.GOOGLE_MAPS_API_KEY) {
-      const googleResults = await searchWithGoogleMaps(query);
-      if (googleResults.length > 0) {
-        return googleResults;
-      }
+    // Intentar ambos servicios en paralelo para mayor confiabilidad
+    const searchPromises: Promise<Place[]>[] = [];
+    
+    // Siempre intentar Nominatim
+    const nominatimPromise = searchWithNominatim(query)
+      .catch(error => {
+        console.warn('Nominatim search failed:', error);
+        return [] as Place[];
+      });
+    
+    searchPromises.push(nominatimPromise);
+    
+    // También intentar Google Maps si está disponible
+    if (config.GOOGLE_MAPS_API_KEY) {
+      const googlePromise = searchWithGoogleMaps(query)
+        .catch(error => {
+          console.warn('Google Maps search failed:', error);
+          return [] as Place[];
+        });
+      
+      searchPromises.push(googlePromise);
     }
     
-    // Intentar con Nominatim primero (desarrollo o fallback)
-    const nominatimResults = await searchWithNominatim(query);
-    if (nominatimResults.length > 0) {
-      return nominatimResults;
+    // Esperar a que ambos terminen o fallen
+    const results = await Promise.all(searchPromises);
+    
+    // Combinar resultados, priorizando Google Maps si hay resultados
+    let combinedResults = results.flat();
+    
+    // Si no hay resultados, devolver un placeholder para debugging
+    if (combinedResults.length === 0) {
+      console.warn('No search results from any provider');
+      return getFallbackResults(query);
     }
     
-    // Si Nominatim falla, usar Google Maps como backup
-    return await searchWithGoogleMaps(query);
+    return combinedResults;
   } catch (error) {
     console.error('Error al buscar lugares:', error);
-    // Fallback a Google Maps si Nominatim falla
-    try {
-      return await searchWithGoogleMaps(query);
-    } catch (googleError) {
-      console.error('Error al buscar lugares con Google Maps:', googleError);
-      return [];
-    }
+    return getFallbackResults(query);
   }
+}
+
+// Función de fallback para siempre mostrar algún resultado
+function getFallbackResults(query: string): Place[] {
+  return [{
+    name: `Búsqueda: ${query}`,
+    coordinates: { lat: 4.6097, lng: -74.0817 }, // Bogotá (default)
+    fullAddress: `No se encontraron resultados para: ${query}`,
+    city: 'Ubicación no encontrada',
+    state: '',
+    country: '',
+    placeType: 'unknown',
+    displayName: `Sin resultados: ${query}`
+  }];
 }
 
 async function searchWithNominatim(query: string): Promise<Place[]> {
@@ -61,7 +89,7 @@ async function searchWithNominatim(query: string): Promise<Place[]> {
       headers: {
         'Accept': 'application/json',
         'Accept-Language': 'es',
-        'User-Agent': 'AURA Weather Route App (https://aur-a.netlify.app)',
+        'User-Agent': 'AURA-Weather-Route-App/1.0 (+https://aur-a.netlify.app)',
         ...(typeof window !== 'undefined' ? { 'Referer': window.location.origin } : {})
       },
       signal: controller.signal
@@ -147,6 +175,25 @@ async function searchWithGoogleMaps(query: string): Promise<Place[]> {
   }
 
   try {
+    // Intentar primero con la función serverless (en producción)
+    if (import.meta.env.PROD) {
+      try {
+        const params = new URLSearchParams({
+          query: query,
+          endpoint: 'place/textsearch/json'
+        });
+        
+        const response = await fetch(`/api/maps/search?${params}`);
+        if (response.ok) {
+          return processGoogleMapsResponse(await response.json());
+        }
+      } catch (error) {
+        console.warn('Error en Google Maps serverless function:', error);
+        // Continuar con el método alternativo
+      }
+    }
+    
+    // Método alternativo: proxy en netlify.toml
     const params = new URLSearchParams({
       query: query,
       key: config.GOOGLE_MAPS_API_KEY,
@@ -156,7 +203,7 @@ async function searchWithGoogleMaps(query: string): Promise<Place[]> {
       radius: '5000000' // 5000 km de radio (cubre toda Sudamérica)
     });
 
-    const response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
+    const response = await fetch(`${config.GOOGLE_MAPS_BASE_URL}/place/textsearch/json?${params}`);
     
     if (!response.ok) {
       console.warn(`Google Maps responded with status: ${response.status}`);
@@ -164,54 +211,82 @@ async function searchWithGoogleMaps(query: string): Promise<Place[]> {
     }
 
     const data = await response.json();
-    
-    if (data.status !== 'OK') {
-      console.warn(`Google Maps API status: ${data.status}`, data.error_message);
-      return [];
-    }
-    
-    if (!Array.isArray(data.results)) {
-      console.warn('Google Maps returned invalid data format');
-      return [];
-    }
+    return processGoogleMapsResponse(data);
+  } catch (error) {
+    console.error('Error en Google Maps search:', error);
+    return [];
+  }
+}
 
-    // Filtrar resultados para asegurar que estén en Sudamérica
-    const southAmericaResults = data.results.filter((result: any) => {
-      const lat = result.geometry.location.lat;
-      const lng = result.geometry.location.lng;
+// Función para procesar respuestas de Google Maps de manera consistente
+function processGoogleMapsResponse(data: any): Place[] {
+  if (!data || data.status !== 'OK') {
+    console.warn(`Google Maps API status: ${data?.status}`, data?.error_message);
+    return [];
+  }
+  
+  if (!Array.isArray(data.results)) {
+    console.warn('Google Maps returned invalid data format');
+    return [];
+  }
+
+  // Filtrar resultados para asegurar que estén en Sudamérica
+  const southAmericaResults = data.results.filter((result: any) => {
+    try {
+      const lat = result.geometry?.location?.lat;
+      const lng = result.geometry?.location?.lng;
+      
+      if (typeof lat !== 'number' || typeof lng !== 'number') {
+        return false;
+      }
+      
       // Coordenadas aproximadas de Sudamérica
       return lat >= -56.0 && lat <= 13.4 && lng >= -81.2 && lng <= -34.8;
-    });
+    } catch (error) {
+      console.warn('Error filtering result:', error);
+      return false;
+    }
+  });
 
-    return southAmericaResults.slice(0, 8).map((result: any) => {
-    const name = result.name;
-    const fullAddress = result.formatted_address;
-    
-    // Extraer información de la dirección formateada
-    const addressParts = fullAddress.split(', ');
-    const country = addressParts[addressParts.length - 1] || '';
-    const state = addressParts[addressParts.length - 2] || '';
-    const city = addressParts[addressParts.length - 3] || addressParts[0];
-    
-    // Determinar tipo de lugar basado en Google Places types
-    const placeType = getGooglePlaceType(result.types);
-    
-    // Crear display name
-    const displayName = createDisplayName(name, city, state, country);
-    
-    return {
-      name: name,
-      coordinates: {
-        lat: result.geometry.location.lat,
-        lng: result.geometry.location.lng
-      },
-      fullAddress: fullAddress,
-      city: city,
-      state: state,
-      country: country,
-      placeType: placeType,
-      displayName: displayName
-    };
+  const mappedResults = southAmericaResults.slice(0, 8).map((result: any) => {
+    try {
+      const name = result.name || '';
+      const fullAddress = result.formatted_address || '';
+      
+      // Extraer información de la dirección formateada
+      const addressParts = fullAddress.split(', ');
+      const country = addressParts[addressParts.length - 1] || '';
+      const state = addressParts[addressParts.length - 2] || '';
+      const city = addressParts[addressParts.length - 3] || addressParts[0] || '';
+      
+      // Determinar tipo de lugar basado en Google Places types
+      const placeType = getGooglePlaceType(result.types);
+      
+      // Crear display name
+      const displayName = createDisplayName(name, city, state, country);
+      
+      return {
+        name: name,
+        coordinates: {
+          lat: result.geometry?.location?.lat || 0,
+          lng: result.geometry?.location?.lng || 0
+        },
+        fullAddress: fullAddress,
+        city: city,
+        state: state,
+        country: country,
+        placeType: placeType,
+        displayName: displayName
+      };
+    } catch (error) {
+      console.warn('Error processing Google Maps result:', error);
+      return null;
+    }
+  });
+  
+  // Filtrar elementos nulos
+  return mappedResults.filter((place): place is Place => place !== null);
+}
   });
   
   } catch (error) {

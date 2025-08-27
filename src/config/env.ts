@@ -5,6 +5,7 @@ interface Config {
   OPENWEATHER_BASE_URL: string;
   NOMINATIM_BASE_URL: string;
   OSRM_BASE_URL: string;
+  GOOGLE_MAPS_BASE_URL: string;
   WEATHER_UNITS: string;
 }
 
@@ -15,6 +16,7 @@ export const config: Config = {
   OPENWEATHER_BASE_URL: 'https://api.openweathermap.org/data/2.5',
   NOMINATIM_BASE_URL: '/nominatim',
   OSRM_BASE_URL: '/osrm',
+  GOOGLE_MAPS_BASE_URL: '/gmaps',
   WEATHER_UNITS: 'metric' // Celsius
 };
 
