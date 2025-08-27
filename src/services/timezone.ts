@@ -83,12 +83,25 @@ async function getTimezoneFromWorldTimeAPI(coordinates: Coordinates): Promise<Ti
 
     const data = await response.json();
     
+    // Validar que los datos sean válidos
+    if (!data || !data.timezone || !data.datetime) {
+      console.warn('Datos inválidos de WorldTimeAPI');
+      return null;
+    }
+    
+    // Validar que datetime sea una fecha válida
+    const parsedDate = new Date(data.datetime);
+    if (isNaN(parsedDate.getTime())) {
+      console.warn('Datetime inválido de WorldTimeAPI:', data.datetime);
+      return null;
+    }
+    
     return {
       timezone: data.timezone,
-      abbreviation: data.abbreviation,
-      utcOffset: data.utc_offset,
+      abbreviation: data.abbreviation || 'UTC',
+      utcOffset: data.utc_offset || '+00:00',
       datetime: data.datetime,
-      localTime: new Date(data.datetime)
+      localTime: parsedDate
     };
   } catch (error) {
     console.error('Error obteniendo timezone de WorldTimeAPI:', error);
@@ -110,21 +123,25 @@ function getTimezoneFromLocalMapping(coordinates: Coordinates): TimezoneInfo {
       lng >= zone.bounds.lngMin &&
       lng <= zone.bounds.lngMax
     ) {
-      // Calcular hora local basada en el offset - usando método más seguro
+      // Calcular hora local basada en el offset - método más seguro
       const now = new Date();
-      const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
-      const localTime = new Date(utcTime + (zone.offset * 1000));
+      let localTime: Date;
       
-      // Validar que la fecha sea válida
-      if (isNaN(localTime.getTime())) {
-        console.warn('Fecha inválida calculada, usando hora actual');
-        return {
-          timezone: zone.timezone,
-          abbreviation: getTimezoneAbbreviation(zone.timezone),
-          utcOffset: zone.offset,
-          datetime: now.toISOString(),
-          localTime: now
-        };
+      try {
+        // Validar que el offset sea un número válido
+        const offsetSeconds = typeof zone.offset === 'number' && !isNaN(zone.offset) ? zone.offset : 0;
+        
+        // Método más seguro usando UTC
+        const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+        localTime = new Date(utcTime + (offsetSeconds * 1000));
+        
+        // Doble validación de la fecha resultante
+        if (!localTime || isNaN(localTime.getTime()) || localTime.getTime() === 0) {
+          throw new Error('Fecha inválida calculada');
+        }
+      } catch (error) {
+        console.warn('Error calculando hora local, usando hora actual:', error);
+        localTime = now;
       }
       
       return {
@@ -171,26 +188,72 @@ function getTimezoneAbbreviation(timezone: string): string {
  * Convierte una fecha a la zona horaria específica
  */
 export function convertToTimezone(date: Date, timezoneInfo: TimezoneInfo): Date {
-  // Obtener timestamp UTC
-  const utcTime = date.getTime() + (date.getTimezoneOffset() * 60000);
-  
-  // Aplicar offset de la zona horaria de destino
-  const targetTime = new Date(utcTime + (timezoneInfo.utcOffset * 1000));
-  
-  return targetTime;
+  try {
+    // Validar inputs
+    if (!date || isNaN(date.getTime()) || !timezoneInfo) {
+      console.warn('Inputs inválidos para convertToTimezone, usando fecha original');
+      return date || new Date();
+    }
+    
+    // Validar que utcOffset sea un número
+    const offset = typeof timezoneInfo.utcOffset === 'number' && !isNaN(timezoneInfo.utcOffset) 
+      ? timezoneInfo.utcOffset 
+      : 0;
+    
+    // Obtener timestamp UTC
+    const utcTime = date.getTime() + (date.getTimezoneOffset() * 60000);
+    
+    // Aplicar offset de la zona horaria de destino
+    const targetTime = new Date(utcTime + (offset * 1000));
+    
+    // Validar resultado
+    if (isNaN(targetTime.getTime())) {
+      console.warn('Resultado inválido en convertToTimezone, usando fecha original');
+      return date;
+    }
+    
+    return targetTime;
+  } catch (error) {
+    console.error('Error en convertToTimezone:', error);
+    return date || new Date();
+  }
 }
 
 /**
  * Obtiene la hora actual en una zona horaria específica
  */
 export function getCurrentTimeInTimezone(timezoneInfo: TimezoneInfo): Date {
-  return convertToTimezone(new Date(), timezoneInfo);
+  try {
+    return convertToTimezone(new Date(), timezoneInfo);
+  } catch (error) {
+    console.error('Error obteniendo hora actual en timezone:', error);
+    return new Date();
+  }
 }
 
 /**
  * Formatea una fecha para input datetime-local en zona específica
  */
 export function formatForDateTimeLocal(date: Date, timezoneInfo: TimezoneInfo): string {
-  const localDate = convertToTimezone(date, timezoneInfo);
-  return localDate.toISOString().slice(0, 16);
+  try {
+    if (!date || isNaN(date.getTime()) || !timezoneInfo) {
+      console.warn('Inputs inválidos para formatForDateTimeLocal, usando fecha actual');
+      const fallbackDate = new Date();
+      return fallbackDate.toISOString().slice(0, 16);
+    }
+    
+    const localDate = convertToTimezone(date, timezoneInfo);
+    
+    // Validar que la fecha convertida sea válida
+    if (isNaN(localDate.getTime())) {
+      console.warn('Fecha convertida inválida, usando fecha original');
+      return date.toISOString().slice(0, 16);
+    }
+    
+    return localDate.toISOString().slice(0, 16);
+  } catch (error) {
+    console.error('Error formateando fecha para datetime-local:', error);
+    const fallbackDate = date || new Date();
+    return fallbackDate.toISOString().slice(0, 16);
+  }
 }

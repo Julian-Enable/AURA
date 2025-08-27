@@ -50,15 +50,22 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
         setTimezoneLoading(true);
         try {
           const timezoneInfo = await getTimezoneInfo(selectedOriginPlace.coordinates);
-          setOriginTimezone(timezoneInfo);
           
-          // Actualizar hora de partida si es necesario
-          const currentTimeInOrigin = getCurrentTimeInTimezone(timezoneInfo);
-          const minTimeInOrigin = formatForDateTimeLocal(currentTimeInOrigin, timezoneInfo);
-          
-          if (departureTime < minTimeInOrigin) {
-            const defaultTimeInOrigin = new Date(currentTimeInOrigin.getTime() + 30 * 60 * 1000);
-            setDepartureTime(formatForDateTimeLocal(defaultTimeInOrigin, timezoneInfo));
+          // Verificar que timezoneInfo sea válido
+          if (timezoneInfo && timezoneInfo.localTime && !isNaN(timezoneInfo.localTime.getTime())) {
+            setOriginTimezone(timezoneInfo);
+            
+            // Actualizar hora de partida si es necesario
+            const currentTimeInOrigin = getCurrentTimeInTimezone(timezoneInfo);
+            const minTimeInOrigin = formatForDateTimeLocal(currentTimeInOrigin, timezoneInfo);
+            
+            if (departureTime < minTimeInOrigin) {
+              const defaultTimeInOrigin = new Date(currentTimeInOrigin.getTime() + 30 * 60 * 1000);
+              setDepartureTime(formatForDateTimeLocal(defaultTimeInOrigin, timezoneInfo));
+            }
+          } else {
+            console.warn('Timezone info inválido, usando fallback');
+            setOriginTimezone(null);
           }
         } catch (error) {
           console.error('Error obteniendo zona horaria:', error);
