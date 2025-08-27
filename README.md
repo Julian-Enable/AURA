@@ -50,7 +50,7 @@
 
 ## 🚀 Demo en Vivo
 
-🔗 **[Ver Demo](https://tu-demo-url.netlify.app)** | 📖 **[Documentación](https://github.com/Julian-Enable/AURA)**
+🔗 **[Ver Demo](https://aur-a.netlify.app)** | 📖 **[Documentación](https://github.com/Julian-Enable/AURA)**
 
 ---
 
