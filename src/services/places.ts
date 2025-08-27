@@ -51,24 +51,37 @@ async function searchWithNominatim(query: string): Promise<Place[]> {
     viewbox: '-81.2,-56.0,-34.8,13.4' // Bounding box de Sudamérica
   });
 
-  const response = await fetch(`${config.NOMINATIM_BASE_URL}/search?${params}`, {
-    headers: {
-      'Accept-Language': 'es',
-      'User-Agent': 'AURA_Weather_Route_App/1.0',
-      'Referer': window.location.origin
+  // Crear AbortController de manera segura
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const response = await fetch(`${config.NOMINATIM_BASE_URL}/search?${params}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Accept-Language': 'es',
+        'User-Agent': 'AURA Weather Route App (https://aura-app.netlify.app)',
+        ...(typeof window !== 'undefined' ? { 'Referer': window.location.origin } : {})
+      },
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.warn(`Nominatim responded with status: ${response.status}`);
+      throw new Error(`Error Nominatim: ${response.status}`);
     }
-  });
 
-  if (!response.ok) {
-    throw new Error(`Error Nominatim: ${response.status}`);
-  }
+    const data = await response.json();
+    
+    if (!Array.isArray(data)) {
+      console.warn('Nominatim returned invalid data format');
+      return [];
+    }
 
-  const data = await response.json();
-  if (!Array.isArray(data)) {
-    return [];
-  }
-
-  return data.map((result: any) => {
+    const places = data.map((result: any) => {
     const name = result.namedetails?.name 
       || result.namedetails?.['name:es'] 
       || result.namedetails?.['name:en']
@@ -113,6 +126,18 @@ async function searchWithNominatim(query: string): Promise<Place[]> {
       displayName: displayName
     };
   });
+
+    return places;
+  
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn('Nominatim request timeout');
+      throw new Error('Timeout en búsqueda');
+    }
+    console.error('Error en Nominatim:', error);
+    throw error;
+  }
 }
 
 async function searchWithGoogleMaps(query: string): Promise<Place[]> {

@@ -110,10 +110,22 @@ function getTimezoneFromLocalMapping(coordinates: Coordinates): TimezoneInfo {
       lng >= zone.bounds.lngMin &&
       lng <= zone.bounds.lngMax
     ) {
-      // Calcular hora local basada en el offset
+      // Calcular hora local basada en el offset - usando método más seguro
       const now = new Date();
       const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
       const localTime = new Date(utcTime + (zone.offset * 1000));
+      
+      // Validar que la fecha sea válida
+      if (isNaN(localTime.getTime())) {
+        console.warn('Fecha inválida calculada, usando hora actual');
+        return {
+          timezone: zone.timezone,
+          abbreviation: getTimezoneAbbreviation(zone.timezone),
+          utcOffset: zone.offset,
+          datetime: now.toISOString(),
+          localTime: now
+        };
+      }
       
       return {
         timezone: zone.timezone,
@@ -129,7 +141,7 @@ function getTimezoneFromLocalMapping(coordinates: Coordinates): TimezoneInfo {
   const now = new Date();
   
   return {
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     abbreviation: 'LOCAL',
     utcOffset: -now.getTimezoneOffset() * 60,
     datetime: now.toISOString(),
