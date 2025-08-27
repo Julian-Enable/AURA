@@ -285,14 +285,7 @@ function processGoogleMapsResponse(data: any): Place[] {
   });
   
   // Filtrar elementos nulos
-  return mappedResults.filter((place): place is Place => place !== null);
-}
-  });
-  
-  } catch (error) {
-    console.error('Error en Google Maps search:', error);
-    return [];
-  }
+  return mappedResults.filter((place: Place | null): place is Place => place !== null);
 }
 
 export async function getPlaceDetails(query: string): Promise<Place | null> {
