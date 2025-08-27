@@ -4,7 +4,7 @@ import AutocompleteInput from './AutocompleteInput';
 import { Place } from '../types';
 
 interface RouteFormProps {
-  onSearch: (origin: string, destination: string) => void;
+  onSearch: (origin: string, destination: string, originPlace?: Place, destinationPlace?: Place) => void;
   onOriginSelect?: (place: Place) => void;
   loading: boolean;
 }
@@ -12,16 +12,24 @@ interface RouteFormProps {
 const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading }) => {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+  const [selectedOriginPlace, setSelectedOriginPlace] = useState<Place | null>(null);
+  const [selectedDestinationPlace, setSelectedDestinationPlace] = useState<Place | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (origin.trim() && destination.trim()) {
-      onSearch(origin.trim(), destination.trim());
+      onSearch(
+        origin.trim(), 
+        destination.trim(), 
+        selectedOriginPlace || undefined, 
+        selectedDestinationPlace || undefined
+      );
     }
   };
 
   const handleOriginSelect = (place: Place) => {
     setOrigin(place.name);
+    setSelectedOriginPlace(place);
     // Notificar al componente padre que se seleccionó un origen
     if (onOriginSelect) {
       onOriginSelect(place);
@@ -30,6 +38,7 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
 
   const handleDestinationSelect = (place: Place) => {
     setDestination(place.name);
+    setSelectedDestinationPlace(place);
   };
 
   return (

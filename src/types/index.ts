@@ -76,6 +76,11 @@ export interface Place {
   name: string;
   coordinates: Coordinates;
   fullAddress: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  placeType?: string;
+  displayName?: string;
 }
 
 // Tipos para el estado de la aplicación

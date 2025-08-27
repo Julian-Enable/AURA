@@ -39,7 +39,7 @@ function App() {
     }
   };
 
-  const handleSearch = async (origin: string, destination: string) => {
+  const handleSearch = async (origin: string, destination: string, originPlace?: Place, destinationPlace?: Place) => {
     setLoading(true);
     setError(null);
     
@@ -53,7 +53,16 @@ function App() {
       
       // Paso 1: Obtener la ruta
       console.log('Obteniendo ruta...');
-      const route = await RouteService.getRoute(origin, destination);
+      
+      let route: RouteData;
+      if (originPlace && destinationPlace) {
+        // Usar lugares específicos si están disponibles
+        route = await RouteService.getRouteFromPlaces(originPlace, destinationPlace);
+      } else {
+        // Fallback a búsqueda por texto
+        route = await RouteService.getRoute(origin, destination);
+      }
+      
       setRouteData(route);
       
       // Paso 2: Obtener el clima para cada punto de la ruta

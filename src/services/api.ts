@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { RouteData, WeatherData, Coordinates } from '../types';
+import { RouteData, WeatherData, Coordinates, Place } from '../types';
 import { config } from '../config/env';
 import { getPlaceDetails, getRoute as getOSRMRoute, getLocationName } from './places';
 
@@ -26,9 +26,36 @@ function getDistanceBetweenPoints(point1: Coordinates, point2: Coordinates): num
 
 export class RouteService {
   /**
-   * Obtiene la ruta entre dos puntos usando OSRM
+   * Punto de origen para referencia
    */
   static originPoint: any = null;
+
+  /**
+   * Calcula el número óptimo de puntos meteorológicos basado en la distancia del viaje
+   * @param distanceInMeters Distancia total en metros
+   * @returns Número óptimo de puntos meteorológicos
+   */
+  static calculateOptimalWeatherPoints(distanceInMeters: number): number {
+    const distanceInKm = distanceInMeters / 1000;
+    
+    // Lógica para calcular puntos basada en distancia
+    if (distanceInKm <= 50) {
+      // Viaje corto (≤50km): 3-5 puntos
+      return Math.max(3, Math.min(5, Math.ceil(distanceInKm / 15)));
+    } else if (distanceInKm <= 200) {
+      // Viaje medio (50-200km): 5-8 puntos
+      return Math.max(5, Math.min(8, Math.ceil(distanceInKm / 30)));
+    } else if (distanceInKm <= 500) {
+      // Viaje largo (200-500km): 8-12 puntos
+      return Math.max(8, Math.min(12, Math.ceil(distanceInKm / 50)));
+    } else if (distanceInKm <= 1000) {
+      // Viaje muy largo (500-1000km): 12-15 puntos
+      return Math.max(12, Math.min(15, Math.ceil(distanceInKm / 70)));
+    } else {
+      // Viaje épico (>1000km): 15-20 puntos máximo
+      return Math.max(15, Math.min(20, Math.ceil(distanceInKm / 100)));
+    }
+  }
 
   static async getRoute(originName: string, destinationName: string): Promise<RouteData> {
     try {
@@ -43,13 +70,27 @@ export class RouteService {
         throw new Error('No se pudieron encontrar las ubicaciones especificadas');
       }
 
-      const route = await getOSRMRoute(originResults, destinationResults);
+      return this.getRouteFromPlaces(originResults, destinationResults);
+    } catch (error) {
+      console.error('Error obteniendo ruta:', error);
+      throw error;
+    }
+  }
+
+  static async getRouteFromPlaces(origin: Place, destination: Place): Promise<RouteData> {
+    try {
+      // Guardar el punto de origen
+      this.originPoint = origin;
+
+      const route = await getOSRMRoute(origin, destination);
       const totalDistance = route.distance;
       const totalDuration = route.duration;
       const now = new Date();
       
-      // Seleccionar puntos estratégicos para el pronóstico del clima
-      const numWeatherPoints = 10;
+      // Calcular puntos estratégicos dinámicamente basado en la distancia
+      const numWeatherPoints = this.calculateOptimalWeatherPoints(totalDistance);
+      console.log(`Distancia total: ${(totalDistance / 1000).toFixed(1)} km - Puntos meteorológicos: ${numWeatherPoints}`);
+      
       const points = [];
       const routePoints = route.points;
       
@@ -86,7 +127,7 @@ export class RouteService {
           arrivalTime,
           distance: targetDistance,
           duration: timeInSeconds,
-          locationName: locationName || 'Punto en ruta'
+          locationName
         });
       }
 
@@ -94,11 +135,11 @@ export class RouteService {
         points,
         totalDistance,
         totalDuration,
-        polyline: '', // Ya no necesitamos la polyline porque usamos los puntos directamente
+        polyline: ''
       };
     } catch (error) {
-      console.error('Error obteniendo la ruta:', error);
-      throw new Error('No se pudo obtener la ruta');
+      console.error('Error obteniendo ruta con lugares específicos:', error);
+      throw error;
     }
   }
 }

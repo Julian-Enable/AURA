@@ -71,13 +71,38 @@ async function searchWithNominatim(query: string): Promise<Place[]> {
     const address = addressParts.slice(0, 3).join(', ') + 
       (addressParts.length > 3 ? `, ${addressParts[addressParts.length - 1]}` : '');
 
+    // Extraer información específica del address
+    const city = result.address?.city 
+      || result.address?.town 
+      || result.address?.village 
+      || result.address?.municipality
+      || addressParts[1]?.trim() || '';
+
+    const state = result.address?.state 
+      || result.address?.region 
+      || result.address?.province
+      || addressParts[2]?.trim() || '';
+
+    const country = result.address?.country || addressParts[addressParts.length - 1]?.trim() || '';
+
+    // Determinar el tipo de lugar
+    const placeType = getPlaceType(result.type, result.class, result.address);
+
+    // Crear nombre de display más informativo
+    const displayName = createDisplayName(name, city, state, country);
+
     return {
       name: name,
       coordinates: {
         lat: parseFloat(result.lat),
         lng: parseFloat(result.lon)
       },
-      fullAddress: address
+      fullAddress: address,
+      city: city,
+      state: state,
+      country: country,
+      placeType: placeType,
+      displayName: displayName
     };
   });
 }
@@ -117,14 +142,36 @@ async function searchWithGoogleMaps(query: string): Promise<Place[]> {
     return lat >= -56.0 && lat <= 13.4 && lng >= -81.2 && lng <= -34.8;
   });
 
-  return southAmericaResults.slice(0, 8).map((result: any) => ({
-    name: result.name,
-    coordinates: {
-      lat: result.geometry.location.lat,
-      lng: result.geometry.location.lng
-    },
-    fullAddress: result.formatted_address
-  }));
+  return southAmericaResults.slice(0, 8).map((result: any) => {
+    const name = result.name;
+    const fullAddress = result.formatted_address;
+    
+    // Extraer información de la dirección formateada
+    const addressParts = fullAddress.split(', ');
+    const country = addressParts[addressParts.length - 1] || '';
+    const state = addressParts[addressParts.length - 2] || '';
+    const city = addressParts[addressParts.length - 3] || addressParts[0];
+    
+    // Determinar tipo de lugar basado en Google Places types
+    const placeType = getGooglePlaceType(result.types);
+    
+    // Crear display name
+    const displayName = createDisplayName(name, city, state, country);
+    
+    return {
+      name: name,
+      coordinates: {
+        lat: result.geometry.location.lat,
+        lng: result.geometry.location.lng
+      },
+      fullAddress: fullAddress,
+      city: city,
+      state: state,
+      country: country,
+      placeType: placeType,
+      displayName: displayName
+    };
+  });
 }
 
 export async function getPlaceDetails(query: string): Promise<Place | null> {
@@ -277,6 +324,152 @@ async function getLocationNameFromGoogleMaps(coordinates: Coordinates): Promise<
   }
   
   return 'Punto en ruta';
+}
+
+// Función auxiliar para determinar el tipo de lugar
+function getPlaceType(type: string, className: string, address: any): string {
+  if (address?.amenity) {
+    const amenityTypes: Record<string, string> = {
+      'restaurant': '🍽️ Restaurante',
+      'hotel': '🏨 Hotel',
+      'hospital': '🏥 Hospital',
+      'school': '🏫 Escuela',
+      'university': '🎓 Universidad',
+      'bank': '🏦 Banco',
+      'gas_station': '⛽ Gasolinera',
+      'pharmacy': '💊 Farmacia',
+      'police': '👮 Policía',
+      'fire_station': '🚒 Bomberos',
+      'post_office': '📮 Correo',
+      'library': '📚 Biblioteca',
+      'cinema': '🎬 Cine',
+      'theatre': '🎭 Teatro',
+      'museum': '🏛️ Museo',
+      'shopping_mall': '🛍️ Centro Comercial',
+      'supermarket': '🛒 Supermercado',
+      'cafe': '☕ Café',
+      'bar': '🍺 Bar',
+      'fuel': '⛽ Gasolinera'
+    };
+    return amenityTypes[address.amenity] || '📍 Lugar';
+  }
+
+  if (address?.tourism) {
+    const tourismTypes: Record<string, string> = {
+      'hotel': '🏨 Hotel',
+      'museum': '🏛️ Museo',
+      'attraction': '🎯 Atracción',
+      'viewpoint': '👁️ Mirador',
+      'monument': '🗿 Monumento',
+      'park': '🌳 Parque'
+    };
+    return tourismTypes[address.tourism] || '🎯 Turismo';
+  }
+
+  if (className === 'place') {
+    const placeTypes: Record<string, string> = {
+      'city': '🏙️ Ciudad',
+      'town': '🏘️ Pueblo',
+      'village': '🏡 Villa',
+      'municipality': '🏛️ Municipio',
+      'neighbourhood': '🏘️ Barrio',
+      'suburb': '🏘️ Suburbio',
+      'district': '📍 Distrito',
+      'quarter': '📍 Sector'
+    };
+    return placeTypes[type] || '📍 Lugar';
+  }
+
+  if (className === 'highway') {
+    return '🛣️ Carretera';
+  }
+
+  if (className === 'natural') {
+    const naturalTypes: Record<string, string> = {
+      'beach': '🏖️ Playa',
+      'mountain': '⛰️ Montaña',
+      'lake': '🏞️ Lago',
+      'river': '🏊 Río',
+      'forest': '🌲 Bosque',
+      'park': '🌳 Parque'
+    };
+    return naturalTypes[type] || '🌿 Natural';
+  }
+
+  return '📍 Lugar';
+}
+
+// Función auxiliar para determinar el tipo de lugar de Google Places
+function getGooglePlaceType(types: string[]): string {
+  const typeMap: Record<string, string> = {
+    'restaurant': '🍽️ Restaurante',
+    'lodging': '🏨 Hotel',
+    'hospital': '🏥 Hospital',
+    'school': '🏫 Escuela',
+    'university': '🎓 Universidad',
+    'bank': '🏦 Banco',
+    'gas_station': '⛽ Gasolinera',
+    'pharmacy': '💊 Farmacia',
+    'police': '👮 Policía',
+    'fire_station': '🚒 Bomberos',
+    'post_office': '📮 Correo',
+    'library': '📚 Biblioteca',
+    'movie_theater': '🎬 Cine',
+    'museum': '🏛️ Museo',
+    'shopping_mall': '🛍️ Centro Comercial',
+    'supermarket': '🛒 Supermercado',
+    'cafe': '☕ Café',
+    'bar': '🍺 Bar',
+    'airport': '✈️ Aeropuerto',
+    'subway_station': '🚇 Metro',
+    'bus_station': '🚌 Terminal',
+    'train_station': '🚂 Estación',
+    'tourist_attraction': '🎯 Atracción',
+    'park': '🌳 Parque',
+    'church': '⛪ Iglesia',
+    'mosque': '🕌 Mezquita',
+    'synagogue': '🕍 Sinagoga',
+    'spa': '💆 Spa',
+    'gym': '💪 Gimnasio',
+    'store': '🏪 Tienda',
+    'locality': '🏙️ Ciudad',
+    'administrative_area_level_1': '📍 Estado',
+    'administrative_area_level_2': '📍 Provincia',
+    'country': '🌍 País'
+  };
+
+  // Buscar el tipo más específico
+  for (const type of types) {
+    if (typeMap[type]) {
+      return typeMap[type];
+    }
+  }
+
+  // Fallbacks por categoría
+  if (types.includes('establishment')) return '🏢 Establecimiento';
+  if (types.includes('point_of_interest')) return '📍 Punto de Interés';
+  if (types.includes('natural_feature')) return '🌿 Natural';
+  
+  return '📍 Lugar';
+}
+
+// Función auxiliar para crear nombre de display informativo
+function createDisplayName(name: string, city: string, state: string, country: string): string {
+  const parts = [name];
+  
+  if (city && city !== name) {
+    parts.push(city);
+  }
+  
+  if (state && state !== city && state !== name) {
+    parts.push(state);
+  }
+  
+  if (country) {
+    parts.push(country);
+  }
+  
+  return parts.slice(0, 3).join(', ');
 }
 
 export async function getRoute(origin: Place, destination: Place) {

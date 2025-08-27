@@ -62,7 +62,7 @@ const RouteDetails: React.FC<RouteDetailsProps> = ({ routeData, weatherPoints })
       </div>
 
       {/* Resumen de la ruta */}
-      <div className="grid grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100 hover:shadow-md transition-shadow">
           <div className="flex items-center mb-2">
             <div className="bg-blue-100 p-2 rounded-lg mr-3">
