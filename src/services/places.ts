@@ -61,7 +61,7 @@ async function searchWithNominatim(query: string): Promise<Place[]> {
       headers: {
         'Accept': 'application/json',
         'Accept-Language': 'es',
-        'User-Agent': 'AURA Weather Route App (https://aura-app.netlify.app)',
+        'User-Agent': 'AURA Weather Route App (https://aur-a.netlify.app)',
         ...(typeof window !== 'undefined' ? { 'Referer': window.location.origin } : {})
       },
       signal: controller.signal
@@ -146,36 +146,44 @@ async function searchWithGoogleMaps(query: string): Promise<Place[]> {
     return [];
   }
 
-  const params = new URLSearchParams({
-    query: query,
-    key: config.GOOGLE_MAPS_API_KEY,
-    language: 'es',
-    region: 'co', // Colombia como región base
-    location: '-8.7832,-55.4915', // Centro de Sudamérica (Brasil)
-    radius: '5000000' // 5000 km de radio (cubre toda Sudamérica)
-  });
+  try {
+    const params = new URLSearchParams({
+      query: query,
+      key: config.GOOGLE_MAPS_API_KEY,
+      language: 'es',
+      region: 'co', // Colombia como región base
+      location: '-8.7832,-55.4915', // Centro de Sudamérica (Brasil)
+      radius: '5000000' // 5000 km de radio (cubre toda Sudamérica)
+    });
 
-  const response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
-  
-  if (!response.ok) {
-    throw new Error(`Error Google Maps: ${response.status}`);
-  }
+    const response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
+    
+    if (!response.ok) {
+      console.warn(`Google Maps responded with status: ${response.status}`);
+      throw new Error(`Error Google Maps: ${response.status}`);
+    }
 
-  const data = await response.json();
-  
-  if (data.status !== 'OK' || !Array.isArray(data.results)) {
-    return [];
-  }
+    const data = await response.json();
+    
+    if (data.status !== 'OK') {
+      console.warn(`Google Maps API status: ${data.status}`, data.error_message);
+      return [];
+    }
+    
+    if (!Array.isArray(data.results)) {
+      console.warn('Google Maps returned invalid data format');
+      return [];
+    }
 
-  // Filtrar resultados para asegurar que estén en Sudamérica
-  const southAmericaResults = data.results.filter((result: any) => {
-    const lat = result.geometry.location.lat;
-    const lng = result.geometry.location.lng;
-    // Coordenadas aproximadas de Sudamérica
-    return lat >= -56.0 && lat <= 13.4 && lng >= -81.2 && lng <= -34.8;
-  });
+    // Filtrar resultados para asegurar que estén en Sudamérica
+    const southAmericaResults = data.results.filter((result: any) => {
+      const lat = result.geometry.location.lat;
+      const lng = result.geometry.location.lng;
+      // Coordenadas aproximadas de Sudamérica
+      return lat >= -56.0 && lat <= 13.4 && lng >= -81.2 && lng <= -34.8;
+    });
 
-  return southAmericaResults.slice(0, 8).map((result: any) => {
+    return southAmericaResults.slice(0, 8).map((result: any) => {
     const name = result.name;
     const fullAddress = result.formatted_address;
     
@@ -205,6 +213,11 @@ async function searchWithGoogleMaps(query: string): Promise<Place[]> {
       displayName: displayName
     };
   });
+  
+  } catch (error) {
+    console.error('Error en Google Maps search:', error);
+    return [];
+  }
 }
 
 export async function getPlaceDetails(query: string): Promise<Place | null> {

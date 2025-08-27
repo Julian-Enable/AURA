@@ -13,8 +13,8 @@ export const config: Config = {
   GOOGLE_MAPS_API_KEY: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
   OPENWEATHER_API_KEY: import.meta.env.VITE_OPENWEATHER_API_KEY || '',
   OPENWEATHER_BASE_URL: 'https://api.openweathermap.org/data/2.5',
-  NOMINATIM_BASE_URL: import.meta.env.PROD ? 'https://nominatim.openstreetmap.org' : '/nominatim',
-  OSRM_BASE_URL: import.meta.env.PROD ? 'https://router.project-osrm.org' : '/osrm',
+  NOMINATIM_BASE_URL: '/nominatim',
+  OSRM_BASE_URL: '/osrm',
   WEATHER_UNITS: 'metric' // Celsius
 };
 
