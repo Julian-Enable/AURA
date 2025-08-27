@@ -200,10 +200,10 @@ function App() {
       <footer className="bg-gray-800 text-white py-6 mt-12">
         <div className="container mx-auto px-4 text-center">
           <p className="text-gray-300">
-            © 2024 AURA - Pronóstico de Clima en Ruta. Desarrollado con React, TypeScript y APIs de Google Maps y OpenWeather.
+            © 2024 AURA - Pronóstico de Clima en Ruta. Desarrollado con React, TypeScript y APIs de OpenStreetMap y OpenWeather.
           </p>
           <p className="text-gray-400 text-sm mt-2">
-            Proyecto de portafolio que integra múltiples fuentes de datos en tiempo real
+            Proyecto de portafolio que integra datos abiertos y APIs libres
           </p>
         </div>
       </footer>
