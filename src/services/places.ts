@@ -10,66 +10,108 @@ export async function searchPlaces(query: string): Promise<Place[]> {
   if (!query) return [];
   
   try {
-    const params = new URLSearchParams({
-      q: query,
-      format: 'json',
-      limit: '8',
-      addressdetails: '1',
-      namedetails: '1',
-      'accept-language': 'es'
-    });
-
-    const response = await fetch(`${config.NOMINATIM_BASE_URL}/search?${params}`, {
-      headers: {
-        'Accept-Language': 'es',
-        'User-Agent': 'AURA_Weather_Route_App/1.0',
-        'Referer': window.location.origin
-      }
-    });
-
-    if (!response.ok) {
-      const errorMessage = `Error al buscar lugares: ${response.status} ${response.statusText}`;
-      console.error(errorMessage);
-      throw new Error(errorMessage);
+    // Intentar con Nominatim primero
+    const nominatimResults = await searchWithNominatim(query);
+    if (nominatimResults.length > 0) {
+      return nominatimResults;
     }
-
-    let data;
-    try {
-      data = await response.json();
-    } catch (error) {
-      console.error('Error al procesar la respuesta JSON:', error);
-      throw new Error('Error al procesar la respuesta del servidor');
-    }
-
-    if (!Array.isArray(data)) {
-      console.warn('La respuesta no es un array:', data);
-      return [];
-    }
-
-    return data.map((result: any) => {
-      const name = result.namedetails?.name 
-        || result.namedetails?.['name:es'] 
-        || result.namedetails?.['name:en']
-        || result.name 
-        || result.display_name.split(',')[0];
-
-      const addressParts = result.display_name.split(', ');
-      const address = addressParts.slice(0, 3).join(', ') + 
-        (addressParts.length > 3 ? `, ${addressParts[addressParts.length - 1]}` : '');
-
-      return {
-        name: name,
-        coordinates: {
-          lat: parseFloat(result.lat),
-          lng: parseFloat(result.lon)
-        },
-        fullAddress: address
-      };
-    });
+    
+    // Si Nominatim falla, usar Google Maps como backup
+    return await searchWithGoogleMaps(query);
   } catch (error) {
     console.error('Error al buscar lugares:', error);
+    // Fallback a Google Maps si Nominatim falla
+    try {
+      return await searchWithGoogleMaps(query);
+    } catch (googleError) {
+      console.error('Error al buscar lugares con Google Maps:', googleError);
+      return [];
+    }
+  }
+}
+
+async function searchWithNominatim(query: string): Promise<Place[]> {
+  const params = new URLSearchParams({
+    q: query,
+    format: 'json',
+    limit: '8',
+    addressdetails: '1',
+    namedetails: '1',
+    'accept-language': 'es'
+  });
+
+  const response = await fetch(`${config.NOMINATIM_BASE_URL}/search?${params}`, {
+    headers: {
+      'Accept-Language': 'es',
+      'User-Agent': 'AURA_Weather_Route_App/1.0',
+      'Referer': window.location.origin
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error Nominatim: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!Array.isArray(data)) {
     return [];
   }
+
+  return data.map((result: any) => {
+    const name = result.namedetails?.name 
+      || result.namedetails?.['name:es'] 
+      || result.namedetails?.['name:en']
+      || result.name 
+      || result.display_name.split(',')[0];
+
+    const addressParts = result.display_name.split(', ');
+    const address = addressParts.slice(0, 3).join(', ') + 
+      (addressParts.length > 3 ? `, ${addressParts[addressParts.length - 1]}` : '');
+
+    return {
+      name: name,
+      coordinates: {
+        lat: parseFloat(result.lat),
+        lng: parseFloat(result.lon)
+      },
+      fullAddress: address
+    };
+  });
+}
+
+async function searchWithGoogleMaps(query: string): Promise<Place[]> {
+  if (!config.GOOGLE_MAPS_API_KEY) {
+    console.warn('Google Maps API key no configurada');
+    return [];
+  }
+
+  const params = new URLSearchParams({
+    query: query,
+    key: config.GOOGLE_MAPS_API_KEY,
+    language: 'es',
+    region: 'co' // Colombia
+  });
+
+  const response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
+  
+  if (!response.ok) {
+    throw new Error(`Error Google Maps: ${response.status}`);
+  }
+
+  const data = await response.json();
+  
+  if (data.status !== 'OK' || !Array.isArray(data.results)) {
+    return [];
+  }
+
+  return data.results.slice(0, 8).map((result: any) => ({
+    name: result.name,
+    coordinates: {
+      lat: result.geometry.location.lat,
+      lng: result.geometry.location.lng
+    },
+    fullAddress: result.formatted_address
+  }));
 }
 
 export async function getPlaceDetails(query: string): Promise<Place | null> {
@@ -117,12 +159,32 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Función para obtener el nombre de ubicación con reintentos
 export async function getLocationName(coordinates: Coordinates): Promise<string> {
-  const maxRetries = 3;
-  const retryDelay = 1000; // 1 segundo entre reintentos
+  try {
+    // Intentar con Nominatim primero
+    const nominatimName = await getLocationNameFromNominatim(coordinates);
+    if (nominatimName !== 'Punto en ruta') {
+      return nominatimName;
+    }
+    
+    // Si Nominatim falla, usar Google Maps
+    return await getLocationNameFromGoogleMaps(coordinates);
+  } catch (error) {
+    console.error('Error obteniendo nombre de ubicación:', error);
+    try {
+      return await getLocationNameFromGoogleMaps(coordinates);
+    } catch (googleError) {
+      console.error('Error con Google Maps:', googleError);
+      return 'Punto en ruta';
+    }
+  }
+}
+
+async function getLocationNameFromNominatim(coordinates: Coordinates): Promise<string> {
+  const maxRetries = 2;
+  const retryDelay = 1000;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      // Esperar antes de cada intento (excepto el primero)
       if (attempt > 1) {
         await delay(retryDelay);
       }
@@ -158,13 +220,46 @@ export async function getLocationName(coordinates: Coordinates): Promise<string>
       }
       return 'Punto en ruta';
     } catch (error) {
-      console.warn(`Intento ${attempt} fallido:`, error);
+      console.warn(`Nominatim intento ${attempt} fallido:`, error);
       if (attempt === maxRetries) {
-        console.error('Se agotaron los reintentos para obtener el nombre de ubicación');
-        return 'Punto en ruta';
+        throw error;
       }
     }
   }
+  return 'Punto en ruta';
+}
+
+async function getLocationNameFromGoogleMaps(coordinates: Coordinates): Promise<string> {
+  if (!config.GOOGLE_MAPS_API_KEY) {
+    return 'Punto en ruta';
+  }
+
+  const params = new URLSearchParams({
+    latlng: `${coordinates.lat},${coordinates.lng}`,
+    key: config.GOOGLE_MAPS_API_KEY,
+    language: 'es',
+    region: 'co'
+  });
+
+  const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+  
+  if (!response.ok) {
+    throw new Error(`Error Google Maps: ${response.status}`);
+  }
+
+  const data = await response.json();
+  
+  if (data.status === 'OK' && data.results.length > 0) {
+    const result = data.results[0];
+    // Buscar la ciudad en los componentes de dirección
+    const cityComponent = result.address_components.find((component: any) => 
+      component.types.includes('locality') || 
+      component.types.includes('administrative_area_level_2')
+    );
+    
+    return cityComponent ? cityComponent.long_name : result.formatted_address.split(',')[0];
+  }
+  
   return 'Punto en ruta';
 }
 
