@@ -10,6 +10,7 @@ export interface RoutePoint {
   arrivalTime: Date;
   distance: number;
   duration: number;
+  locationName?: string;
 }
 
 export interface RouteData {
@@ -28,6 +29,7 @@ export interface WeatherData {
   description: string;
   icon: string;
   arrivalTime: Date;
+  locationName?: string;
 }
 
 export interface WeatherPoint {
@@ -71,10 +73,9 @@ export interface OpenWeatherResponse {
 
 // Tipo para lugares
 export interface Place {
-  id: string;
   name: string;
   coordinates: Coordinates;
-  address: string;
+  fullAddress: string;
 }
 
 // Tipos para el estado de la aplicación

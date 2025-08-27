@@ -145,7 +145,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         >
           {suggestions.map((suggestion, index) => (
             <div
-              key={suggestion.id}
+              key={`${suggestion.name}-${suggestion.coordinates.lat}-${suggestion.coordinates.lng}`}
               onClick={() => handleSuggestionClick(suggestion)}
               className={`px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${
                 index === selectedIndex ? 'bg-aura-blue bg-opacity-10' : ''

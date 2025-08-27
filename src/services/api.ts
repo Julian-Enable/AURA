@@ -1,70 +1,100 @@
 import axios from 'axios';
-import polyline from '@mapbox/polyline';
-import { GoogleMapsResponse, OpenWeatherResponse, RouteData, WeatherData, Coordinates } from '../types';
+import { RouteData, WeatherData, Coordinates } from '../types';
 import { config } from '../config/env';
-
-// Cliente axios para Google Maps
-const googleMapsClient = axios.create({
-  baseURL: config.GOOGLE_MAPS_BASE_URL,
-});
+import { getPlaceDetails, getRoute as getOSRMRoute, getLocationName } from './places';
 
 // Cliente axios para OpenWeather
 const openWeatherClient = axios.create({
-  baseURL: config.OPENWEATHER_BASE_URL,
+  baseURL: 'https://api.openweathermap.org/data/2.5',
 });
+
+// Función auxiliar para calcular la distancia entre dos puntos
+function getDistanceBetweenPoints(point1: Coordinates, point2: Coordinates): number {
+  const R = 6371e3; // Radio de la Tierra en metros
+  const φ1 = point1.lat * Math.PI / 180;
+  const φ2 = point2.lat * Math.PI / 180;
+  const Δφ = (point2.lat - point1.lat) * Math.PI / 180;
+  const Δλ = (point2.lng - point1.lng) * Math.PI / 180;
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+          Math.cos(φ1) * Math.cos(φ2) *
+          Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c;
+}
 
 export class RouteService {
   /**
-   * Obtiene la ruta entre dos puntos usando Google Maps Directions API
+   * Obtiene la ruta entre dos puntos usando OSRM
    */
-  static async getRoute(origin: string, destination: string): Promise<RouteData> {
+  static originPoint: any = null;
+
+  static async getRoute(originName: string, destinationName: string): Promise<RouteData> {
     try {
-      const response = await googleMapsClient.get<GoogleMapsResponse>('/directions/json', {
-        params: {
-          origin,
-          destination,
-          key: config.GOOGLE_MAPS_API_KEY,
-        },
-      });
+      // Obtener detalles de los lugares usando Nominatim
+      const originResults = await getPlaceDetails(originName);
+      const destinationResults = await getPlaceDetails(destinationName);
+      
+      // Guardar el punto de origen
+      this.originPoint = originResults;
 
-      const route = response.data.routes[0];
-      const leg = route.legs[0];
-      
-      // Decodificar la polyline para obtener todos los puntos de la ruta
-      const decodedPolyline = polyline.decode(route.overview_polyline.points);
-      
-      // Convertir a formato de coordenadas
-      const coordinates: Coordinates[] = decodedPolyline.map(([lat, lng]: [number, number]) => ({
-        lat,
-        lng,
-      }));
+      if (!originResults || !destinationResults) {
+        throw new Error('No se pudieron encontrar las ubicaciones especificadas');
+      }
 
-      // Dividir la ruta en puntos clave (cada 10% de la ruta)
-      const numPoints = 10;
-      const points: any[] = [];
+      const route = await getOSRMRoute(originResults, destinationResults);
+      const totalDistance = route.distance;
+      const totalDuration = route.duration;
+      const now = new Date();
       
-      for (let i = 0; i < numPoints; i++) {
-        const index = Math.floor((i / (numPoints - 1)) * (coordinates.length - 1));
-        const coord = coordinates[index];
+      // Seleccionar puntos estratégicos para el pronóstico del clima
+      const numWeatherPoints = 10;
+      const points = [];
+      const routePoints = route.points;
+      
+      for (let i = 0; i < numWeatherPoints; i++) {
+        const progress = i / (numWeatherPoints - 1);
+        const targetDistance = totalDistance * progress;
         
-        // Calcular tiempo de llegada aproximado
-        const progress = i / (numPoints - 1);
-        const arrivalTime = new Date();
-        arrivalTime.setMinutes(arrivalTime.getMinutes() + (leg.duration.value * progress / 60));
+        // Encontrar el punto más cercano en la ruta real
+        let accumulatedDistance = 0;
+        let selectedPointIndex = 0;
+        
+        for (let j = 1; j < routePoints.length; j++) {
+          const segmentDistance = getDistanceBetweenPoints(
+            routePoints[j - 1].coordinates,
+            routePoints[j].coordinates
+          );
+          
+          if (accumulatedDistance + segmentDistance > targetDistance) {
+            selectedPointIndex = j;
+            break;
+          }
+          accumulatedDistance += segmentDistance;
+        }
+        
+        // Calcular tiempo de llegada basado en la proporción de la distancia
+        const timeInSeconds = totalDuration * progress;
+        const arrivalTime = new Date(now.getTime() + timeInSeconds * 1000);
+        
+        const coordinates = routePoints[selectedPointIndex].coordinates;
+        const locationName = await getLocationName(coordinates);
         
         points.push({
-          coordinates: coord,
+          coordinates,
           arrivalTime,
-          distance: leg.distance.value * progress,
-          duration: leg.duration.value * progress,
+          distance: targetDistance,
+          duration: timeInSeconds,
+          locationName: locationName || 'Punto en ruta'
         });
       }
 
       return {
         points,
-        totalDistance: leg.distance.value,
-        totalDuration: leg.duration.value,
-        polyline: route.overview_polyline.points,
+        totalDistance,
+        totalDuration,
+        polyline: '', // Ya no necesitamos la polyline porque usamos los puntos directamente
       };
     } catch (error) {
       console.error('Error obteniendo la ruta:', error);
@@ -77,16 +107,21 @@ export class WeatherService {
   /**
    * Obtiene el pronóstico del clima para una coordenada específica
    */
-  static async getWeatherForecast(coordinates: Coordinates, timestamp: Date): Promise<WeatherData> {
+  static async getWeatherForecast(coordinates: Coordinates, timestamp: Date, locationName?: string): Promise<WeatherData> {
     try {
-      const response = await openWeatherClient.get<OpenWeatherResponse>('/forecast', {
+      const response = await openWeatherClient.get('/forecast', {
         params: {
           lat: coordinates.lat,
           lon: coordinates.lng,
           appid: config.OPENWEATHER_API_KEY,
-          units: config.WEATHER_UNITS,
+          units: 'metric',
+          lang: 'es'
         },
       });
+
+      if (!response.data?.list?.length) {
+        throw new Error('Datos de pronóstico inválidos');
+      }
 
       // Encontrar el pronóstico más cercano al timestamp
       const targetTime = timestamp.getTime() / 1000;
@@ -102,6 +137,7 @@ export class WeatherService {
         description: forecast.weather[0].description,
         icon: forecast.weather[0].icon,
         arrivalTime: timestamp,
+        locationName
       };
     } catch (error) {
       console.error('Error obteniendo el clima:', error);
@@ -114,7 +150,7 @@ export class WeatherService {
    */
   static async getWeatherForRoute(routeData: RouteData): Promise<WeatherData[]> {
     const weatherPromises = routeData.points.map(point =>
-      this.getWeatherForecast(point.coordinates, point.arrivalTime)
+      this.getWeatherForecast(point.coordinates, point.arrivalTime, point.locationName)
     );
 
     try {

@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { RouteService, WeatherService } from './services/api';
 import { RouteData, WeatherPoint } from './types';
 import RouteForm from './components/RouteForm';
 import WeatherMap from './components/WeatherMap';
 import RouteDetails from './components/RouteDetails';
-import { CloudRain, AlertCircle, Play } from 'lucide-react';
-import { generateMockRouteData, generateMockWeatherPoints } from './utils/mockData';
+import { CloudRain, AlertCircle } from 'lucide-react';
+
 import { validateConfig } from './config/env';
 
 function App() {
@@ -13,6 +13,14 @@ function App() {
   const [weatherPoints, setWeatherPoints] = useState<WeatherPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Verificar la configuración al iniciar
+    const configValid = validateConfig();
+    if (!configValid) {
+      setError('⚠️ Algunas API keys no están configuradas. La aplicación funcionará en modo de demostración.');
+    }
+  }, []);
 
   const handleSearch = async (origin: string, destination: string) => {
     setLoading(true);
@@ -23,15 +31,7 @@ function App() {
       const configValid = validateConfig();
       
       if (!configValid) {
-        // Usar datos de ejemplo si las API keys no están configuradas
-        console.log('Usando modo de demostración...');
-        const mockRoute = generateMockRouteData(origin, destination);
-        const mockWeather = generateMockWeatherPoints(mockRoute);
-        
-        setRouteData(mockRoute);
-        setWeatherPoints(mockWeather);
-        setError('🎯 Modo de demostración activado. Los datos mostrados son simulados. Para usar datos reales, configura las API keys.');
-        return;
+        throw new Error('Es necesario configurar las API keys para utilizar la aplicación.');
       }
       
       // Paso 1: Obtener la ruta
@@ -63,20 +63,7 @@ function App() {
     }
   };
 
-  const handleDemo = () => {
-    setLoading(true);
-    setError(null);
-    
-    setTimeout(() => {
-      const mockRoute = generateMockRouteData('Ciudad de México', 'Guadalajara');
-      const mockWeather = generateMockWeatherPoints(mockRoute);
-      
-      setRouteData(mockRoute);
-      setWeatherPoints(mockWeather);
-      setError('🎯 Modo de demostración activado. Los datos mostrados son simulados.');
-      setLoading(false);
-    }, 2000);
-  };
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -105,34 +92,7 @@ function App() {
           <div className="lg:col-span-1 space-y-6">
             <RouteForm onSearch={handleSearch} loading={loading} />
             
-            {/* Botón de demostración */}
-            <div className="weather-card">
-              <div className="flex items-center mb-4">
-                <Play className="w-5 h-5 text-aura-blue mr-2" />
-                <h2 className="text-xl font-semibold text-gray-800">Modo Demostración</h2>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                Prueba la aplicación con datos simulados sin necesidad de configurar API keys.
-              </p>
-              <button
-                onClick={handleDemo}
-                disabled={loading}
-                className="btn-primary w-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Cargando...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 mr-2" />
-                    Ver Demostración
-                  </>
-                )}
-              </button>
-            </div>
-            
+
             {routeData && weatherPoints.length > 0 && (
               <RouteDetails routeData={routeData} weatherPoints={weatherPoints} />
             )}
@@ -189,7 +149,11 @@ function App() {
               )}
 
               {routeData && weatherPoints.length > 0 && (
-                <WeatherMap routeData={routeData} weatherPoints={weatherPoints} />
+                <WeatherMap 
+                  routeData={routeData} 
+                  weatherPoints={weatherPoints}
+                  origin={RouteService.originPoint} 
+                />
               )}
             </div>
           </div>
