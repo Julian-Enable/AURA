@@ -37,7 +37,10 @@ async function searchWithNominatim(query: string): Promise<Place[]> {
     limit: '8',
     addressdetails: '1',
     namedetails: '1',
-    'accept-language': 'es'
+    'accept-language': 'es',
+    countrycodes: 'co,ve,br,ar,pe,cl,ec,bo,py,uy,gy,sr,gf', // Códigos de países de Sudamérica
+    bounded: '1',
+    viewbox: '-81.2,-56.0,-34.8,13.4' // Bounding box de Sudamérica
   });
 
   const response = await fetch(`${config.NOMINATIM_BASE_URL}/search?${params}`, {
@@ -89,7 +92,9 @@ async function searchWithGoogleMaps(query: string): Promise<Place[]> {
     query: query,
     key: config.GOOGLE_MAPS_API_KEY,
     language: 'es',
-    region: 'co' // Colombia
+    region: 'co', // Colombia como región base
+    location: '-8.7832,-55.4915', // Centro de Sudamérica (Brasil)
+    radius: '5000000' // 5000 km de radio (cubre toda Sudamérica)
   });
 
   const response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
@@ -104,7 +109,15 @@ async function searchWithGoogleMaps(query: string): Promise<Place[]> {
     return [];
   }
 
-  return data.results.slice(0, 8).map((result: any) => ({
+  // Filtrar resultados para asegurar que estén en Sudamérica
+  const southAmericaResults = data.results.filter((result: any) => {
+    const lat = result.geometry.location.lat;
+    const lng = result.geometry.location.lng;
+    // Coordenadas aproximadas de Sudamérica
+    return lat >= -56.0 && lat <= 13.4 && lng >= -81.2 && lng <= -34.8;
+  });
+
+  return southAmericaResults.slice(0, 8).map((result: any) => ({
     name: result.name,
     coordinates: {
       lat: result.geometry.location.lat,
@@ -193,7 +206,8 @@ async function getLocationNameFromNominatim(coordinates: Coordinates): Promise<s
         lat: coordinates.lat.toString(),
         lon: coordinates.lng.toString(),
         format: 'json',
-        'accept-language': 'es'
+        'accept-language': 'es',
+        zoom: '10' // Nivel de zoom para obtener ciudades
       });
 
       const response = await fetch(`${config.NOMINATIM_BASE_URL}/reverse?${params}`, {
@@ -216,6 +230,7 @@ async function getLocationNameFromNominatim(coordinates: Coordinates): Promise<s
                address.village || 
                address.municipality || 
                address.suburb ||
+               address.county ||
                'Punto en ruta';
       }
       return 'Punto en ruta';
@@ -238,7 +253,8 @@ async function getLocationNameFromGoogleMaps(coordinates: Coordinates): Promise<
     latlng: `${coordinates.lat},${coordinates.lng}`,
     key: config.GOOGLE_MAPS_API_KEY,
     language: 'es',
-    region: 'co'
+    region: 'co', // Colombia como región base
+    result_type: 'locality|administrative_area_level_2|administrative_area_level_1' // Solo ciudades y áreas administrativas
   });
 
   const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
