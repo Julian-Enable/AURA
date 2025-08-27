@@ -418,7 +418,7 @@ MIT License - Libre para uso comercial y personal
 
 - 🐛 **Issues:** [GitHub Issues](https://github.com/Julian-Enable/AURA/issues)
 - 💬 **Discusiones:** [GitHub Discussions](https://github.com/Julian-Enable/AURA/discussions)
-- 📧 **Email:** julian.enable@example.com
+- 📧 **Email:** engjuliangonzalez@gmail.com
 
 ### 🆘 **Problemas Comunes**
 
