@@ -1,10 +1,6 @@
 import { config } from '../config/env';
 
-declare global {
-  interface Window {
-    google: any;
-  }
-}
+import { loadGoogleMaps } from '../utils/loadGoogleMaps';
 
 export interface PlacePrediction {
   place_id: string;
@@ -28,6 +24,7 @@ export class PlacesService {
     input: string,
     searchType: 'all' | 'cities' | 'countries' = 'all'
   ): Promise<PlacePrediction[]> {
+    await loadGoogleMaps();
     try {
       if (!input || input.length < 2) {
         return [];
@@ -86,6 +83,7 @@ export class PlacesService {
   }
 
   static async getPlaceDetails(placeId: string): Promise<{ lat: number; lng: number } | null> {
+    await loadGoogleMaps();
     try {
       const service = this.getPlacesService();
       
