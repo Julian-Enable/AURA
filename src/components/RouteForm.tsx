@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Search, Loader2 } from 'lucide-react';
+import { MapPin, Search, Loader2, Clock } from 'lucide-react';
 import AutocompleteInput from './AutocompleteInput';
-import { Place } from '../types';
+import { Place, TimezoneInfo } from '../types';
+import { getTimezoneInfo, getCurrentTimeInTimezone, formatForDateTimeLocal } from '../services/timezone';
 
 interface RouteFormProps {
   onSearch: (origin: string, destination: string, originPlace?: Place, destinationPlace?: Place, departureTime?: Date) => void;
@@ -14,33 +15,80 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
   const [destination, setDestination] = useState('');
   const [selectedOriginPlace, setSelectedOriginPlace] = useState<Place | null>(null);
   const [selectedDestinationPlace, setSelectedDestinationPlace] = useState<Place | null>(null);
+  const [originTimezone, setOriginTimezone] = useState<TimezoneInfo | null>(null);
+  const [timezoneLoading, setTimezoneLoading] = useState(false);
   
   // Tiempo por defecto: ahora + 30 minutos (solo al inicializar)
   const [departureTime, setDepartureTime] = useState(() => {
     const now = new Date();
-    const defaultTime = new Date(now.getTime() + 30 * 60 * 1000);
+    // Usar hora local del navegador como default inicial
+    const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    const defaultTime = new Date(localTime.getTime() + 30 * 60 * 1000);
     return defaultTime.toISOString().slice(0, 16);
   });
   
-  // Calcular el tiempo mínimo en tiempo real (se actualiza en cada render)
-  const minDateTime = new Date().toISOString().slice(0, 16);
+  // Calcular el tiempo mínimo basado en la zona horaria del origen
+  const getMinDateTime = (): string => {
+    if (originTimezone) {
+      // Usar zona horaria del origen
+      const currentTimeInOrigin = getCurrentTimeInTimezone(originTimezone);
+      return formatForDateTimeLocal(currentTimeInOrigin, originTimezone);
+    } else {
+      // Fallback a hora local del navegador
+      const now = new Date();
+      const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+      return localNow.toISOString().slice(0, 16);
+    }
+  };
+  
+  const minDateTime = getMinDateTime();
+
+  // Obtener zona horaria cuando se selecciona el origen
+  useEffect(() => {
+    const fetchOriginTimezone = async () => {
+      if (selectedOriginPlace?.coordinates) {
+        setTimezoneLoading(true);
+        try {
+          const timezoneInfo = await getTimezoneInfo(selectedOriginPlace.coordinates);
+          setOriginTimezone(timezoneInfo);
+          
+          // Actualizar hora de partida si es necesario
+          const currentTimeInOrigin = getCurrentTimeInTimezone(timezoneInfo);
+          const minTimeInOrigin = formatForDateTimeLocal(currentTimeInOrigin, timezoneInfo);
+          
+          if (departureTime < minTimeInOrigin) {
+            const defaultTimeInOrigin = new Date(currentTimeInOrigin.getTime() + 30 * 60 * 1000);
+            setDepartureTime(formatForDateTimeLocal(defaultTimeInOrigin, timezoneInfo));
+          }
+        } catch (error) {
+          console.error('Error obteniendo zona horaria:', error);
+          setOriginTimezone(null);
+        } finally {
+          setTimezoneLoading(false);
+        }
+      } else {
+        setOriginTimezone(null);
+      }
+    };
+
+    fetchOriginTimezone();
+  }, [selectedOriginPlace, departureTime]);
   
   // Si el tiempo seleccionado está en el pasado, actualizarlo
   useEffect(() => {
     if (departureTime < minDateTime) {
-      const newTime = new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 16);
-      setDepartureTime(newTime);
+      if (originTimezone) {
+        const currentTimeInOrigin = getCurrentTimeInTimezone(originTimezone);
+        const newTime = new Date(currentTimeInOrigin.getTime() + 30 * 60 * 1000);
+        setDepartureTime(formatForDateTimeLocal(newTime, originTimezone));
+      } else {
+        const now = new Date();
+        const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+        const newTime = new Date(localNow.getTime() + 30 * 60 * 1000);
+        setDepartureTime(newTime.toISOString().slice(0, 16));
+      }
     }
-  }, [minDateTime, departureTime]);
-  
-  // Debug: Ver qué valores tenemos
-  console.log('Valores de tiempo:', {
-    ahora: new Date().toLocaleString(),
-    minDateTime,
-    departureTime,
-    departureTimeAsDate: new Date(departureTime).toLocaleString(),
-    esPasado: departureTime < minDateTime
-  });
+  }, [minDateTime, departureTime, originTimezone]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,8 +160,20 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
         </div>
 
         <div className="relative">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Hora de Partida
+          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
+            <span>Hora de Partida</span>
+            {originTimezone && (
+              <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full flex items-center">
+                <Clock className="w-3 h-3 mr-1" />
+                {originTimezone.abbreviation}
+              </span>
+            )}
+            {timezoneLoading && (
+              <span className="text-xs text-gray-500 flex items-center">
+                <div className="animate-spin rounded-full h-3 w-3 border-b border-gray-400 mr-1"></div>
+                Detectando zona horaria...
+              </span>
+            )}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -130,7 +190,13 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
             />
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            El clima se calculará para esta hora de partida
+            {originTimezone ? (
+              <>
+                Clima calculado en zona horaria de <strong>{selectedOriginPlace?.city || 'origen'}</strong> ({originTimezone.abbreviation})
+              </>
+            ) : (
+              'El clima se calculará para esta hora de partida'
+            )}
           </p>
         </div>
 

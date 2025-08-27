@@ -4,6 +4,15 @@ export interface Coordinates {
   lng: number;
 }
 
+// Tipos para zona horaria
+export interface TimezoneInfo {
+  timezone: string;
+  abbreviation: string;
+  utcOffset: number; // en segundos
+  datetime: string;
+  localTime: Date;
+}
+
 // Tipos para los datos de ruta
 export interface RoutePoint {
   coordinates: Coordinates;
