@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { RouteService, WeatherService } from './services/api';
-import { RouteData, WeatherPoint } from './types';
+import { RouteData, WeatherPoint, Place } from './types';
 import RouteForm from './components/RouteForm';
 import WeatherMap from './components/WeatherMap';
 import RouteDetails from './components/RouteDetails';
-import { CloudRain, AlertCircle } from 'lucide-react';
+import { CloudRain, AlertCircle, MapPin } from 'lucide-react';
 
 import { validateConfig } from './config/env';
 
 function App() {
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [weatherPoints, setWeatherPoints] = useState<WeatherPoint[]>([]);
+  const [selectedOrigin, setSelectedOrigin] = useState<Place | null>(null);
+  const [shouldCenterOnOrigin, setShouldCenterOnOrigin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,6 +23,21 @@ function App() {
       setError('⚠️ Algunas API keys no están configuradas. La aplicación funcionará en modo de demostración.');
     }
   }, []);
+
+  const handleOriginSelect = (place: Place) => {
+    setSelectedOrigin(place);
+    setShouldCenterOnOrigin(true);
+    
+    // Resetear el flag después de un momento para permitir futuras centralizaciones
+    setTimeout(() => setShouldCenterOnOrigin(false), 1000);
+  };
+
+  const handleRecenterOnOrigin = () => {
+    if (selectedOrigin) {
+      setShouldCenterOnOrigin(true);
+      setTimeout(() => setShouldCenterOnOrigin(false), 1000);
+    }
+  };
 
   const handleSearch = async (origin: string, destination: string) => {
     setLoading(true);
@@ -90,7 +107,11 @@ function App() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Sidebar */}
           <div className="lg:col-span-1 space-y-6">
-            <RouteForm onSearch={handleSearch} loading={loading} />
+            <RouteForm 
+              onSearch={handleSearch} 
+              onOriginSelect={handleOriginSelect}
+              loading={loading} 
+            />
             
 
             {routeData && weatherPoints.length > 0 && (
@@ -101,9 +122,21 @@ function App() {
           {/* Map Section */}
           <div className="lg:col-span-2">
             <div className="weather-card h-full">
-              <div className="flex items-center mb-4">
-                <CloudRain className="w-5 h-5 text-aura-blue mr-2" />
-                <h2 className="text-xl font-semibold text-gray-800">Mapa de Ruta y Clima</h2>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <CloudRain className="w-5 h-5 text-aura-blue mr-2" />
+                  <h2 className="text-xl font-semibold text-gray-800">Mapa de Ruta y Clima</h2>
+                </div>
+                {selectedOrigin && routeData && (
+                  <button
+                    onClick={handleRecenterOnOrigin}
+                    className="flex items-center px-3 py-1 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors duration-200"
+                    title="Volver al origen"
+                  >
+                    <MapPin className="w-4 h-4 mr-1" />
+                    Origen
+                  </button>
+                )}
               </div>
               
                              {error && (
@@ -134,7 +167,7 @@ function App() {
                 </div>
               )}
 
-              {!loading && !routeData && !error && (
+              {!loading && !routeData && !error && !selectedOrigin && (
                 <div className="flex items-center justify-center h-96">
                   <div className="text-center">
                     <CloudRain className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -148,11 +181,27 @@ function App() {
                 </div>
               )}
 
+              {selectedOrigin && !routeData && !loading && (
+                <WeatherMap 
+                  routeData={{ points: [] }} 
+                  weatherPoints={[]}
+                  origin={{
+                    coordinates: selectedOrigin.coordinates,
+                    name: selectedOrigin.name
+                  }}
+                  shouldCenterOnOrigin={shouldCenterOnOrigin}
+                />
+              )}
+
               {routeData && weatherPoints.length > 0 && (
                 <WeatherMap 
                   routeData={routeData} 
                   weatherPoints={weatherPoints}
-                  origin={RouteService.originPoint} 
+                  origin={selectedOrigin ? {
+                    coordinates: selectedOrigin.coordinates,
+                    name: selectedOrigin.name
+                  } : undefined}
+                  shouldCenterOnOrigin={shouldCenterOnOrigin}
                 />
               )}
             </div>

@@ -74,4 +74,23 @@
   .arrival-time {
     @apply text-xs text-gray-600;
   }
+
+  /* Estilos para el marcador de origen */
+  .origin-marker-content {
+    @apply flex flex-col items-center;
+  }
+
+  .origin-pin {
+    @apply bg-green-500 rounded-full p-2 shadow-lg border-2 border-white;
+  }
+
+  .origin-pin-icon {
+    @apply text-white text-lg;
+  }
+
+  .origin-label {
+    @apply bg-green-500 text-white text-xs font-medium px-2 py-1 rounded mt-1 shadow-md;
+    max-width: 120px;
+    @apply truncate text-center;
+  }
 }

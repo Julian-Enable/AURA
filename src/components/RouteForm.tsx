@@ -5,10 +5,11 @@ import { Place } from '../types';
 
 interface RouteFormProps {
   onSearch: (origin: string, destination: string) => void;
+  onOriginSelect?: (place: Place) => void;
   loading: boolean;
 }
 
-const RouteForm: React.FC<RouteFormProps> = ({ onSearch, loading }) => {
+const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading }) => {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
 
@@ -21,6 +22,10 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, loading }) => {
 
   const handleOriginSelect = (place: Place) => {
     setOrigin(place.name);
+    // Notificar al componente padre que se seleccionó un origen
+    if (onOriginSelect) {
+      onOriginSelect(place);
+    }
   };
 
   const handleDestinationSelect = (place: Place) => {
