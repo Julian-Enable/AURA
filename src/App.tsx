@@ -83,45 +83,47 @@ function App() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100">
       {/* Header */}
-      <header className="aura-gradient text-white shadow-lg">
-        <div className="container mx-auto px-4 py-6">
+      <header className="aura-gradient text-white shadow-xl border-b-4 border-blue-200">
+        <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <CloudRain className="w-8 h-8 mr-3" />
+            <div className="flex items-center space-x-4">
+              <div className="bg-white bg-opacity-20 p-3 rounded-xl backdrop-blur-sm">
+                <CloudRain className="w-8 h-8 text-white" />
+              </div>
               <div>
-                <h1 className="text-2xl font-bold">AURA</h1>
-                <p className="text-blue-100 text-sm">Pronóstico de Clima en Ruta</p>
+                <h1 className="text-3xl font-black tracking-tight">AURA</h1>
+                <p className="text-blue-100 text-sm font-medium">Asistente de Ubicación y Ruta Atmosférica</p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-blue-100 text-sm">Planifica tu viaje con inteligencia</p>
+            <div className="text-right hidden md:block">
+              <p className="text-blue-100 text-lg font-semibold">Planifica tu viaje con inteligencia</p>
+              <p className="text-blue-200 text-sm">Pronóstico meteorológico en tiempo real</p>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1 space-y-6">
+      <main className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 h-[calc(100vh-140px)]">
+          {/* Sidebar - Más compacto */}
+          <div className="xl:col-span-1 space-y-4 overflow-y-auto">
             <RouteForm 
               onSearch={handleSearch} 
               onOriginSelect={handleOriginSelect}
               loading={loading} 
             />
             
-
             {routeData && weatherPoints.length > 0 && (
               <RouteDetails routeData={routeData} weatherPoints={weatherPoints} />
             )}
           </div>
 
-          {/* Map Section */}
-          <div className="lg:col-span-2">
-            <div className="weather-card h-full">
+          {/* Map Section - Más grande */}
+          <div className="xl:col-span-3">
+            <div className="weather-card map-container h-full">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center">
                   <CloudRain className="w-5 h-5 text-aura-blue mr-2" />
@@ -210,13 +212,13 @@ function App() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-gray-800 text-white py-6 mt-12">
+      <footer className="bg-gradient-to-r from-gray-800 to-gray-900 text-white py-4 mt-8">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-gray-300">
-            © 2024 AURA - Pronóstico de Clima en Ruta. Desarrollado con React, TypeScript y APIs de OpenStreetMap y OpenWeather.
+          <p className="text-gray-300 text-sm">
+            © 2025 <span className="font-semibold">AURA</span> - Asistente de Ubicación y Ruta Atmosférica
           </p>
-          <p className="text-gray-400 text-sm mt-2">
-            Proyecto de portafolio que integra datos abiertos y APIs libres
+          <p className="text-gray-400 text-xs mt-1">
+            Desarrollado con React, TypeScript y APIs meteorológicas de código abierto
           </p>
         </div>
       </footer>

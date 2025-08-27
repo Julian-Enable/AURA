@@ -35,6 +35,7 @@ const WeatherMap: React.FC<WeatherMapProps> = ({ routeData, weatherPoints, origi
   const markersRef = useRef<L.Marker[]>([]);
   const routeRef = useRef<L.Polyline | null>(null);
   const originMarkerRef = useRef<L.Marker | null>(null);
+  const initialBoundsRef = useRef<L.LatLngBounds | null>(null); // Guardar los límites iniciales
 
   // Efecto para centrar el mapa en el origen cuando se selecciona
   useEffect(() => {
@@ -44,6 +45,13 @@ const WeatherMap: React.FC<WeatherMapProps> = ({ routeData, weatherPoints, origi
         animate: true,
         duration: 1.5 // Animación más suave
       });
+
+      // Guardar los límites después de centrar en el origen
+      setTimeout(() => {
+        if (mapRef.current) {
+          initialBoundsRef.current = mapRef.current.getBounds();
+        }
+      }, 2000); // Esperar que termine la animación
 
       // Limpiar marcador de origen anterior
       if (originMarkerRef.current) {
@@ -148,18 +156,11 @@ const WeatherMap: React.FC<WeatherMapProps> = ({ routeData, weatherPoints, origi
         lineJoin: 'round',
       }).addTo(mapRef.current);
 
-      // ¡SOLUCIÓN SIMPLE! Solo mantenemos el mapa donde está (en el origen) 
-      // y NO lo movemos automáticamente después del análisis
-      // El usuario puede usar el botón "Origen" si necesita volver
+      // ¡SOLUCIÓN! Mantener EXACTAMENTE la misma vista/límites del mapa
+      // No cambiar zoom ni área visible, solo dibujar la ruta y marcadores
       
-      // Solo ajustar si NO tenemos origen definido (fallback)
-      if (!origin && routePoints.length > 0) {
-        const bounds = L.latLngBounds(routePoints as L.LatLngExpression[]);
-        mapRef.current.fitBounds(bounds, { 
-          padding: [40, 40], 
-          maxZoom: 9 
-        });
-      }
+      // NO hacer fitBounds ni setView
+      // El mapa mantiene exactamente la misma vista que tenía antes
     }
 
     return () => {

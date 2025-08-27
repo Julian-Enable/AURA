@@ -36,11 +36,42 @@
 
 @layer components {
   .aura-gradient {
-    background: linear-gradient(135deg, #1e40af 0%, #0ea5e9 100%);
+    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 25%, #0ea5e9 75%, #06b6d4 100%);
+    position: relative;
+  }
+  
+  .aura-gradient::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+    pointer-events: none;
   }
   
   .weather-card {
-    @apply bg-white rounded-lg shadow-lg p-4 border border-gray-200;
+    @apply bg-white rounded-xl shadow-xl p-6 border border-gray-100;
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  /* Clase específica para el contenedor del mapa con altura fija */
+  .weather-card.map-container {
+    @apply bg-white rounded-xl shadow-xl p-6 border border-gray-100;
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95);
+    height: calc(100vh - 160px); /* Altura ajustada para el nuevo header */
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* El mapa debe ocupar todo el espacio restante */
+  .weather-card.map-container #map {
+    flex: 1;
+    min-height: 0; /* Importante para que funcione flex */
   }
   
   .btn-primary {
