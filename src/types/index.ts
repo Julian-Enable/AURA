@@ -69,6 +69,14 @@ export interface OpenWeatherResponse {
   }>;
 }
 
+// Tipo para lugares
+export interface Place {
+  id: string;
+  name: string;
+  coordinates: Coordinates;
+  address: string;
+}
+
 // Tipos para el estado de la aplicación
 export interface AppState {
   origin: string;

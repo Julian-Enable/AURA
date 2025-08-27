@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, Search } from 'lucide-react';
-import { PlacesService, PlacePrediction } from '../services/places';
+import { searchPlaces } from '../services/places';
+import { Place } from '../types';
 
 interface AutocompleteInputProps {
   label: string;
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
-  onSelect?: (place: PlacePrediction) => void;
+  onSelect?: (place: Place) => void;
   className?: string;
-  searchType?: 'all' | 'cities' | 'countries';
 }
 
 const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
@@ -19,9 +19,8 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   onChange,
   onSelect,
   className = '',
-  searchType = 'all',
 }) => {
-  const [suggestions, setSuggestions] = useState<PlacePrediction[]>([]);
+  const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -31,12 +30,12 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   // Debounce para evitar demasiadas llamadas a la API
   useEffect(() => {
     const timeoutId = setTimeout(async () => {
-      if (value.length >= 2) {
+      if (value.length >= 3) {
         setLoading(true);
         try {
-          const predictions = await PlacesService.getAutocompleteSuggestions(value, searchType);
-          setSuggestions(predictions);
-          setShowSuggestions(predictions.length > 0);
+          const places = await searchPlaces(value);
+          setSuggestions(places);
+          setShowSuggestions(places.length > 0);
           setSelectedIndex(-1);
         } catch (error) {
           console.error('Error en autocompletado:', error);
@@ -77,8 +76,8 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     setShowSuggestions(true);
   };
 
-  const handleSuggestionClick = (suggestion: PlacePrediction) => {
-    onChange(suggestion.description);
+  const handleSuggestionClick = (suggestion: Place) => {
+    onChange(suggestion.name);
     setShowSuggestions(false);
     if (onSelect) {
       onSelect(suggestion);
@@ -146,7 +145,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         >
           {suggestions.map((suggestion, index) => (
             <div
-              key={suggestion.place_id}
+              key={suggestion.id}
               onClick={() => handleSuggestionClick(suggestion)}
               className={`px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${
                 index === selectedIndex ? 'bg-aura-blue bg-opacity-10' : ''
@@ -156,13 +155,8 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                 <Search className="h-4 w-4 text-gray-400 mr-3 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900 truncate">
-                    {suggestion.structured_formatting.main_text}
+                    {suggestion.name}
                   </div>
-                  {suggestion.structured_formatting.secondary_text && (
-                    <div className="text-sm text-gray-500 truncate">
-                      {suggestion.structured_formatting.secondary_text}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

@@ -1,105 +1,136 @@
 import { config } from '../config/env';
 
 import { loadGoogleMaps } from '../utils/loadGoogleMaps';
+import { Place } from '../types';
 
-export interface PlacePrediction {
-  place_id: string;
-  description: string;
-  structured_formatting: {
-    main_text: string;
-    secondary_text: string;
+const NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';
+
+export async function searchPlaces(query: string): Promise<Place[]> {
+  if (!query) return [];
+  
+  const params = new URLSearchParams({
+    q: query,
+    format: 'json',
+    limit: '5',
+    countrycodes: 'mx', // Limitando a México
+    addressdetails: '1'
+  });
+
+  const response = await fetch(`${NOMINATIM_BASE_URL}/search?${params}`, {
+    headers: {
+      'Accept-Language': 'es'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error('Error al buscar lugares');
+  }
+
+  const results = await response.json();
+  
+  return results.map((result: any) => ({
+    id: result.place_id.toString(),
+    name: result.display_name,
+    coordinates: {
+      lat: parseFloat(result.lat),
+      lng: parseFloat(result.lon)
+    },
+    address: result.display_name
+  }));
+}
+
+export async function getPlaceDetails(placeId: string): Promise<Place | null> {
+  const response = await fetch(`${NOMINATIM_BASE_URL}/details?place_id=${placeId}&format=json`);
+  
+  if (!response.ok) {
+    throw new Error('Error al obtener detalles del lugar');
+  }
+
+  const result = await response.json();
+  
+  return {
+    id: placeId,
+    name: result.name || result.display_name,
+    coordinates: {
+      lat: parseFloat(result.lat),
+      lng: parseFloat(result.lon)
+    },
+    address: result.display_name
   };
 }
 
-export class PlacesService {
-  static async getAutocompleteSuggestions(
-    input: string,
-    searchType: 'all' | 'cities' | 'countries' = 'all'
-  ): Promise<PlacePrediction[]> {
-    try {
-      if (!input || input.length < 2) {
-        return [];
-      }
-
-      const maps = await loadGoogleMaps();
-      const autocompleteService = new maps.places.AutocompleteService();
-      
-      // Configurar los parámetros de búsqueda
-      let types: string[];
-      let componentRestrictions: { country?: string } = {};
-
-      switch (searchType) {
-        case 'cities':
-          types = ['(cities)'];
-          componentRestrictions = { country: 'mx' };
-          break;
-        case 'countries':
-          types = ['(regions)'];
-          break;
-        case 'all':
-        default:
-          types = ['(regions)'];
-          break;
-      }
-
-      const request = {
-        input,
-        types,
-        componentRestrictions,
-        language: 'es',
-      };
-
-      const predictions = await new Promise<google.maps.places.AutocompletePrediction[]>((resolve) => {
-        autocompleteService.getPlacePredictions(request, (results) => {
-          resolve(results || []);
-        });
-      });
-      
-      return predictions.map(result => ({
-        place_id: result.place_id,
-        description: result.description,
-        structured_formatting: {
-          main_text: result.structured_formatting.main_text,
-          secondary_text: result.structured_formatting.secondary_text,
-        },
-      }));
-    } catch (error) {
-      console.error('Error obteniendo sugerencias de autocompletado:', error);
-      return [];
-    }
+export async function getRoute(origin: Place, destination: Place): Promise<{
+  points: Array<{ coordinates: { lat: number; lng: number } }>;
+  distance: number;
+  duration: number;
+}> {
+  // Usando OSRM (Open Source Routing Machine) para obtener la ruta
+  const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${origin.coordinates.lng},${origin.coordinates.lat};${destination.coordinates.lng},${destination.coordinates.lat}?overview=full&geometries=polyline&steps=true`;
+  
+  const response = await fetch(osrmUrl);
+  
+  if (!response.ok) {
+    throw new Error('Error al obtener la ruta');
   }
 
-  static async getPlaceDetails(placeId: string): Promise<{ lat: number; lng: number } | null> {
-    try {
-      const maps = await loadGoogleMaps();
-      const placesService = new maps.places.PlacesService(document.createElement('div'));
-      
-      const request = {
-        placeId,
-        fields: ['geometry']
-      };
-
-      const place = await new Promise((resolve) => {
-        placesService.getDetails(request, (result, status) => {
-          if (status === 'OK') {
-            resolve(result);
-          } else {
-            resolve(null);
-          }
-        });
-      });
-      
-      if (place && place.geometry?.location) {
-        return {
-          lat: place.geometry.location.lat(),
-          lng: place.geometry.location.lng(),
-        };
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Error obteniendo detalles del lugar:', error);
-      return null;
-    }
+  const data = await response.json();
+  
+  if (!data.routes || data.routes.length === 0) {
+    throw new Error('No se encontró una ruta');
   }
+
+  const route = data.routes[0];
+  const points = decodePolyline(route.geometry).map(([lat, lng]) => ({
+    coordinates: { lat, lng }
+  }));
+
+  return {
+    points,
+    distance: route.distance, // en metros
+    duration: route.duration // en segundos
+  };
+}
+
+// Función auxiliar para decodificar la polyline de OSRM
+function decodePolyline(str: string, precision = 5) {
+  let index = 0,
+      lat = 0,
+      lng = 0,
+      coordinates = [],
+      shift = 0,
+      result = 0,
+      byte = null;
+
+  const factor = Math.pow(10, precision);
+
+  // Decode polyline
+  while (index < str.length) {
+    byte = null;
+    shift = 0;
+    result = 0;
+
+    do {
+      byte = str.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    let latitude_change = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    shift = result = 0;
+
+    do {
+      byte = str.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    let longitude_change = ((result & 1) ? ~(result >> 1) : (result >> 1));
+
+    lat += latitude_change;
+    lng += longitude_change;
+
+    coordinates.push([lat / factor, lng / factor]);
+  }
+
+  return coordinates;
 }
