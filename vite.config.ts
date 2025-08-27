@@ -7,5 +7,17 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true
-  }
+  },
+  define: {
+    'process.env': {}
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+        },
+      },
+    },
+  },
 })

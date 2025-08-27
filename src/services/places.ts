@@ -1,10 +1,10 @@
-import axios from 'axios';
 import { config } from '../config/env';
 
-// Cliente para Google Places API
-const placesClient = axios.create({
-  baseURL: config.GOOGLE_PLACES_BASE_URL,
-});
+declare global {
+  interface Window {
+    google: any;
+  }
+}
 
 export interface PlacePrediction {
   place_id: string;
@@ -15,51 +15,70 @@ export interface PlacePrediction {
   };
 }
 
-export interface PlacesAutocompleteResponse {
-  predictions: PlacePrediction[];
-  status: string;
-}
-
 export class PlacesService {
-  static async getAutocompleteSuggestions(input: string, searchType: 'all' | 'cities' | 'countries' = 'all'): Promise<PlacePrediction[]> {
+  private static getAutocompleteService() {
+    return new window.google.maps.places.AutocompleteService();
+  }
+
+  private static getPlacesService() {
+    return new window.google.maps.places.PlacesService(document.createElement('div'));
+  }
+
+  static async getAutocompleteSuggestions(
+    input: string,
+    searchType: 'all' | 'cities' | 'countries' = 'all'
+  ): Promise<PlacePrediction[]> {
     try {
       if (!input || input.length < 2) {
         return [];
       }
 
-      // Configurar tipos de búsqueda según el parámetro
-      let types = '(regions)'; // Por defecto incluye países, estados, ciudades
-      let components = undefined;
+      let types: string[];
+      let componentRestrictions: { country?: string } = {};
 
       switch (searchType) {
         case 'cities':
-          types = '(cities)';
-          components = 'country:mx'; // Priorizar ciudades de México
+          types = ['(cities)'];
+          componentRestrictions = { country: 'mx' };
           break;
         case 'countries':
-          types = '(regions)'; // regions incluye países
+          types = ['(regions)'];
           break;
         case 'all':
         default:
-          types = '(regions)'; // Incluye países, estados, ciudades
+          types = ['(regions)'];
           break;
       }
 
-      const response = await placesClient.get<PlacesAutocompleteResponse>('/autocomplete/json', {
-        params: {
-          input,
-          key: config.GOOGLE_MAPS_API_KEY,
-          types,
-          language: 'es', // Español
-          ...(components && { components }), // Solo incluir components si está definido
-        },
+      const service = this.getAutocompleteService();
+      
+      const predictions = await new Promise<PlacePrediction[]>((resolve, reject) => {
+        service.getPlacePredictions(
+          {
+            input,
+            types,
+            componentRestrictions,
+            language: 'es',
+          },
+          (results: any[], status: string) => {
+            if (status === 'OK') {
+              const formatted = results.map(result => ({
+                place_id: result.place_id,
+                description: result.description,
+                structured_formatting: {
+                  main_text: result.structured_formatting.main_text,
+                  secondary_text: result.structured_formatting.secondary_text,
+                },
+              }));
+              resolve(formatted);
+            } else {
+              resolve([]);
+            }
+          }
+        );
       });
 
-      if (response.data.status === 'OK') {
-        return response.data.predictions;
-      }
-
-      return [];
+      return predictions;
     } catch (error) {
       console.error('Error obteniendo sugerencias de autocompletado:', error);
       return [];
@@ -68,20 +87,28 @@ export class PlacesService {
 
   static async getPlaceDetails(placeId: string): Promise<{ lat: number; lng: number } | null> {
     try {
-      const response = await placesClient.get('/details/json', {
-        params: {
-          place_id: placeId,
-          key: config.GOOGLE_MAPS_API_KEY,
-          fields: 'geometry',
-        },
-      }); 
+      const service = this.getPlacesService();
+      
+      const result = await new Promise((resolve, reject) => {
+        service.getDetails(
+          {
+            placeId: placeId,
+            fields: ['geometry'],
+          },
+          (place: any, status: string) => {
+            if (status === 'OK' && place && place.geometry) {
+              resolve({
+                lat: place.geometry.location.lat(),
+                lng: place.geometry.location.lng(),
+              });
+            } else {
+              resolve(null);
+            }
+          }
+        );
+      });
 
-      if (response.data.status === 'OK' && response.data.result.geometry) {
-        const { lat, lng } = response.data.result.geometry.location;
-        return { lat, lng };
-      }
-
-      return null;
+      return result as { lat: number; lng: number } | null;
     } catch (error) {
       console.error('Error obteniendo detalles del lugar:', error);
       return null;
