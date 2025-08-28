@@ -240,7 +240,7 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
             <div className="text-blue-500 text-lg">💡</div>
           </div>
           <p className="text-sm text-blue-800 leading-relaxed">
-            Busca cualquier ubicación del mundo y selecciona una sugerencia para obtener el pronóstico detallado del clima durante tu viaje.
+            Busca cualquier ubicación de Suramérica y selecciona una sugerencia para obtener el pronóstico detallado del clima durante tu viaje.
           </p>
         </div>
       </div>
