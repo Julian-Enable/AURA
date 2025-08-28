@@ -4,11 +4,13 @@ import { RouteData, WeatherPoint, Place } from './types';
 import RouteForm from './components/RouteForm';
 import WeatherMap from './components/WeatherMap';
 import RouteDetails from './components/RouteDetails';
+import LoadingScreen from './components/LoadingScreen';
 import { CloudRain, AlertCircle, MapPin } from 'lucide-react';
 
 import { validateConfig } from './config/env';
 
 function App() {
+  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [weatherPoints, setWeatherPoints] = useState<WeatherPoint[]>([]);
   const [selectedOrigin, setSelectedOrigin] = useState<Place | null>(null);
@@ -23,6 +25,10 @@ function App() {
       setError('⚠️ Algunas API keys no están configuradas. La aplicación funcionará en modo de demostración.');
     }
   }, []);
+
+  const handleLoadingComplete = () => {
+    setShowLoadingScreen(false);
+  };
 
   const handleOriginSelect = (place: Place) => {
     setSelectedOrigin(place);
@@ -92,7 +98,14 @@ function App() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100">
+    <>
+      {/* Pantalla de carga */}
+      {showLoadingScreen && (
+        <LoadingScreen onComplete={handleLoadingComplete} />
+      )}
+
+      {/* Aplicación principal */}
+      <div className={`min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 transition-opacity duration-500 ${showLoadingScreen ? 'opacity-0' : 'opacity-100'}`}>
       {/* Header */}
       <header className="aura-gradient text-white shadow-xl border-b-4 border-blue-200">
         <div className="container mx-auto px-4 py-4">
@@ -231,7 +244,8 @@ function App() {
           </p>
         </div>
       </footer>
-    </div>
+      </div>
+    </>
   );
 }
 
