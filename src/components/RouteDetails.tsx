@@ -16,15 +16,26 @@ const RouteDetails: React.FC<RouteDetailsProps> = ({ routeData, weatherPoints })
     const loadCityNames = async () => {
       const names = [];
       // Cargar los nombres de las ciudades secuencialmente con un retraso
-      for (const point of weatherPoints) {
+      for (let i = 0; i < weatherPoints.length; i++) {
+        const point = weatherPoints[i];
         try {
           const name = await getLocationName(point.coordinates);
-          names.push(name);
+          // Si no se pudo obtener el nombre de la ciudad, mostrar información más útil
+          if (name === 'Punto en ruta' || !name) {
+            // Crear un nombre más descriptivo basado en las coordenadas
+            const lat = point.coordinates.lat.toFixed(2);
+            const lng = point.coordinates.lng.toFixed(2);
+            names.push(`Ubicación ${i + 1} (${lat}, ${lng})`);
+          } else {
+            names.push(name);
+          }
           setCityNames([...names]); // Actualizar el estado gradualmente
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo entre peticiones
+          await new Promise(resolve => setTimeout(resolve, 800)); // Reducir el tiempo de espera
         } catch (error) {
           console.warn('Error al cargar nombre de ciudad:', error);
-          names.push('Punto en ruta');
+          const lat = point.coordinates.lat.toFixed(2);
+          const lng = point.coordinates.lng.toFixed(2);
+          names.push(`Ubicación ${i + 1} (${lat}, ${lng})`);
         }
       }
     };
@@ -114,7 +125,7 @@ const RouteDetails: React.FC<RouteDetailsProps> = ({ routeData, weatherPoints })
                 <div className="flex items-center">
                   <div className="text-2xl">{weatherIcon}</div>
                   <div className="ml-3">
-                    <h4 className="font-semibold text-gray-700">{cityNames[index] || `Punto ${index + 1}`}</h4>
+                    <h4 className="font-semibold text-gray-700">{cityNames[index] || `Ubicación ${index + 1}`}</h4>
                     <p className="text-sm text-gray-500 capitalize">{point.weather.description}</p>
                   </div>
                 </div>

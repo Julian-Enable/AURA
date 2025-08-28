@@ -18,37 +18,30 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
   const [originTimezone, setOriginTimezone] = useState<TimezoneInfo | null>(null);
   const [timezoneLoading, setTimezoneLoading] = useState(false);
   
-  // Tiempo por defecto: ahora + 30 minutos (solo al inicializar)
+  // Tiempo por defecto: hora actual (sin ajustes automáticos)
   const [departureTime, setDepartureTime] = useState(() => {
     const now = new Date();
     // Usar hora local del navegador como default inicial
     const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-    const defaultTime = new Date(localTime.getTime() + 30 * 60 * 1000);
-    return defaultTime.toISOString().slice(0, 16);
+    return localTime.toISOString().slice(0, 16);
   });
   
-  // Calcular el tiempo mínimo basado en la zona horaria del origen
-  // Permitimos seleccionar la hora actual para salidas inmediatas
+  // Calcular el tiempo mínimo - permitir cualquier hora del día actual
   const getMinDateTime = (): string => {
     try {
-      // Establecer una fecha mínima en el pasado cercano para permitir seleccionar la hora actual
-      // Restamos 5 minutos para dar margen en diferencias entre relojes
-      if (originTimezone) {
-        // Usar zona horaria del origen
-        const currentTimeInOrigin = getCurrentTimeInTimezone(originTimezone);
-        const adjustedTime = new Date(currentTimeInOrigin.getTime() - 5 * 60 * 1000);
-        return formatForDateTimeLocal(adjustedTime, originTimezone);
-      } else {
-        // Fallback a hora local del navegador
-        const now = new Date();
-        const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-        const adjustedTime = new Date(localNow.getTime() - 5 * 60 * 1000);
-        return adjustedTime.toISOString().slice(0, 16);
-      }
+      // Permitir seleccionar desde el inicio del día actual
+      const today = new Date();
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      
+      // Convertir a formato local del navegador para datetime-local
+      const localStartOfDay = new Date(startOfToday.getTime() - startOfToday.getTimezoneOffset() * 60000);
+      return localStartOfDay.toISOString().slice(0, 16);
     } catch (error) {
       console.error('Error calculando hora mínima:', error);
-      const fallbackDate = new Date();
-      return fallbackDate.toISOString().slice(0, 16);
+      // Fallback muy permisivo - ayer
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      return yesterday.toISOString().slice(0, 16);
     }
   };
   
@@ -66,18 +59,11 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
           if (timezoneInfo && timezoneInfo.localTime && !isNaN(timezoneInfo.localTime.getTime())) {
             setOriginTimezone(timezoneInfo);
             
-            // Actualizamos la lógica para permitir selección de hora actual
-            const currentTimeInOrigin = getCurrentTimeInTimezone(timezoneInfo);
-            
-            // Hora actual sin ajustes para permitir salidas inmediatas
-            const currentFormattedTime = formatForDateTimeLocal(currentTimeInOrigin, timezoneInfo);
-            
-            // Solo ajustamos si la hora seleccionada está muy en el pasado (más de 10 minutos)
-            const bufferTime = new Date(currentTimeInOrigin.getTime() - 10 * 60 * 1000);
-            const minTimeWithBuffer = formatForDateTimeLocal(bufferTime, timezoneInfo);
-            
-            if (departureTime < minTimeWithBuffer) {
-              // Usar la hora actual en lugar de añadir 30 minutos para permitir salidas inmediatas
+            // NO modificar automáticamente la hora de partida cuando se detecta la zona horaria
+            // Solo ajustar si la hora actual está completamente vacía o es inválida
+            if (!departureTime || departureTime === '') {
+              const currentTimeInOrigin = getCurrentTimeInTimezone(timezoneInfo);
+              const currentFormattedTime = formatForDateTimeLocal(currentTimeInOrigin, timezoneInfo);
               setDepartureTime(currentFormattedTime);
             }
           } else {
@@ -96,30 +82,26 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
     };
 
     fetchOriginTimezone();
-  }, [selectedOriginPlace, departureTime]);
+  }, [selectedOriginPlace]); // Remover departureTime de las dependencias
   
-  // Modificamos la lógica para ser menos restrictiva con las fechas en el pasado cercano
+  // Solo validar tiempo mínimo de forma muy permisiva
   useEffect(() => {
     try {
-      // Solo ajustamos si la hora seleccionada está muy en el pasado (más de 10 minutos)
-      // Esto permite seleccionar la hora actual o una ligeramente en el pasado para salidas inmediatas
-      const minTimeWithBuffer = new Date(new Date(minDateTime).getTime() - 10 * 60 * 1000).toISOString().slice(0, 16);
+      // Solo verificar que no sea una fecha muy antigua (más de 1 día en el pasado)
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      const oneDayAgoString = oneDayAgo.toISOString().slice(0, 16);
       
-      if (departureTime < minTimeWithBuffer) {
-        if (originTimezone) {
-          const currentTimeInOrigin = getCurrentTimeInTimezone(originTimezone);
-          // Usamos la hora actual en lugar de agregar 30 minutos para permitir salidas inmediatas
-          setDepartureTime(formatForDateTimeLocal(currentTimeInOrigin, originTimezone));
-        } else {
-          const now = new Date();
-          const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-          setDepartureTime(localNow.toISOString().slice(0, 16));
-        }
+      if (departureTime && departureTime < oneDayAgoString) {
+        // Solo ajustar si es una fecha muy antigua
+        const now = new Date();
+        const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+        setDepartureTime(localNow.toISOString().slice(0, 16));
       }
     } catch (error) {
       console.error('Error verificando tiempo mínimo:', error);
     }
-  }, [minDateTime, departureTime, originTimezone]);
+  }, [minDateTime]); // Solo reaccionar a cambios en minDateTime, no en departureTime
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,10 +205,12 @@ const RouteForm: React.FC<RouteFormProps> = ({ onSearch, onOriginSelect, loading
           <p className="text-xs text-gray-500 mt-1">
             {originTimezone ? (
               <>
-                Clima calculado en zona horaria de <strong>{selectedOriginPlace?.city || 'origen'}</strong> ({originTimezone.abbreviation})
+                📍 Clima calculado en zona horaria de <strong>{selectedOriginPlace?.city || 'origen'}</strong> ({originTimezone.abbreviation}).
+                <br />
+                💡 Puedes seleccionar cualquier hora del día de hoy - incluso horas pasadas para viajes inmediatos.
               </>
             ) : (
-              'El clima se calculará para esta hora de partida'
+              '⏰ Selecciona tu hora de partida - puedes elegir cualquier hora del día actual'
             )}
           </p>
         </div>

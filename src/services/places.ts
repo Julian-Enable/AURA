@@ -391,14 +391,35 @@ async function getLocationNameFromNominatim(coordinates: Coordinates): Promise<s
       const data = await response.json();
       if (data && data.address) {
         const address = data.address;
-        return address.city || 
-               address.town || 
-               address.village || 
-               address.municipality || 
-               address.suburb ||
-               address.county ||
-               'Punto en ruta';
+        // Priorizar nombres de ciudades y áreas pobladas
+        const cityName = address.city || 
+                        address.town || 
+                        address.village || 
+                        address.municipality || 
+                        address.suburb ||
+                        address.hamlet ||
+                        address.neighbourhood ||
+                        address.county ||
+                        address.state_district ||
+                        address.state;
+        
+        // Si encontramos un nombre válido, devolverlo
+        if (cityName && cityName.trim()) {
+          return cityName.trim();
+        }
       }
+      
+      // Si no hay datos válidos, intentar con display_name simplificado
+      if (data && data.display_name) {
+        const parts = data.display_name.split(',');
+        if (parts.length > 0) {
+          const firstPart = parts[0].trim();
+          if (firstPart && firstPart.length > 0) {
+            return firstPart;
+          }
+        }
+      }
+      
       return 'Punto en ruta';
     } catch (error) {
       console.warn(`Nominatim intento ${attempt} fallido:`, error);
@@ -433,13 +454,32 @@ async function getLocationNameFromGoogleMaps(coordinates: Coordinates): Promise<
   
   if (data.status === 'OK' && data.results.length > 0) {
     const result = data.results[0];
-    // Buscar la ciudad en los componentes de dirección
+    
+    // Buscar componentes de ciudad en orden de prioridad
     const cityComponent = result.address_components.find((component: any) => 
-      component.types.includes('locality') || 
+      component.types.includes('locality')
+    );
+    
+    const townComponent = result.address_components.find((component: any) => 
       component.types.includes('administrative_area_level_2')
     );
     
-    return cityComponent ? cityComponent.long_name : result.formatted_address.split(',')[0];
+    const stateComponent = result.address_components.find((component: any) => 
+      component.types.includes('administrative_area_level_1')
+    );
+    
+    // Devolver el nombre más específico disponible
+    if (cityComponent) {
+      return cityComponent.long_name;
+    } else if (townComponent) {
+      return townComponent.long_name;
+    } else if (stateComponent) {
+      return stateComponent.long_name;
+    } else {
+      // Como último recurso, usar la primera parte de la dirección formateada
+      const firstPart = result.formatted_address.split(',')[0].trim();
+      return firstPart || 'Punto en ruta';
+    }
   }
   
   return 'Punto en ruta';
