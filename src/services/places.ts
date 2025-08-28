@@ -334,27 +334,47 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // Función para obtener el nombre de ubicación con reintentos
 export async function getLocationName(coordinates: Coordinates): Promise<string> {
   try {
-    // En producción, priorizar Google Maps para mayor confiabilidad
-    if (import.meta.env.PROD && config.GOOGLE_MAPS_API_KEY) {
+    // En producción, intentar múltiples estrategias
+    const isProduction = import.meta.env.PROD;
+    
+    if (isProduction) {
+      // Estrategia 1: Intentar con Google Maps directo si tenemos API key
+      if (config.GOOGLE_MAPS_API_KEY) {
+        try {
+          const googleName = await getLocationNameFromGoogleMapsDirect(coordinates);
+          if (googleName && googleName !== 'Punto en ruta') {
+            return googleName;
+          }
+        } catch (error) {
+          console.warn('Google Maps directo falló:', error);
+        }
+      }
+      
+      // Estrategia 2: Intentar con Nominatim directo
+      try {
+        const nominatimName = await getLocationNameFromNominatimDirect(coordinates);
+        if (nominatimName && nominatimName !== 'Punto en ruta') {
+          return nominatimName;
+        }
+      } catch (error) {
+        console.warn('Nominatim directo falló:', error);
+      }
+      
+      // Estrategia 3: Fallback a mapeo local más inteligente
+      return getLocationNameFromLocalMapping(coordinates);
+    } else {
+      // En desarrollo, usar el flujo normal con proxies
+      const nominatimName = await getLocationNameFromNominatim(coordinates);
+      if (nominatimName !== 'Punto en ruta') {
+        return nominatimName;
+      }
+      
+      // Si Nominatim falla, usar Google Maps
       return await getLocationNameFromGoogleMaps(coordinates);
     }
-    
-    // Intentar con Nominatim primero (desarrollo o fallback)
-    const nominatimName = await getLocationNameFromNominatim(coordinates);
-    if (nominatimName !== 'Punto en ruta') {
-      return nominatimName;
-    }
-    
-    // Si Nominatim falla, usar Google Maps
-    return await getLocationNameFromGoogleMaps(coordinates);
   } catch (error) {
     console.error('Error obteniendo nombre de ubicación:', error);
-    try {
-      return await getLocationNameFromGoogleMaps(coordinates);
-    } catch (googleError) {
-      console.error('Error con Google Maps:', googleError);
-      return 'Punto en ruta';
-    }
+    return getLocationNameFromLocalMapping(coordinates);
   }
 }
 
@@ -676,4 +696,158 @@ export async function getRoute(origin: Place, destination: Place) {
     
     throw new Error('No se pudo obtener la ruta. Por favor, inténtalo de nuevo.');
   }
+}
+
+// Función para obtener nombre de ubicación desde Google Maps de forma directa (sin proxy)
+async function getLocationNameFromGoogleMapsDirect(coordinates: Coordinates): Promise<string> {
+  if (!config.GOOGLE_MAPS_API_KEY) {
+    return 'Punto en ruta';
+  }
+
+  const params = new URLSearchParams({
+    latlng: `${coordinates.lat},${coordinates.lng}`,
+    key: config.GOOGLE_MAPS_API_KEY,
+    language: 'es',
+    region: 'co'
+  });
+
+  const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'User-Agent': 'AURA-Weather-Route-App/1.0'
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Error Google Maps: ${response.status}`);
+  }
+
+  const data = await response.json();
+  
+  if (data.status === 'OK' && data.results.length > 0) {
+    const result = data.results[0];
+    
+    // Buscar componentes de ciudad en orden de prioridad
+    const cityComponent = result.address_components.find((component: any) => 
+      component.types.includes('locality')
+    );
+    
+    const townComponent = result.address_components.find((component: any) => 
+      component.types.includes('administrative_area_level_2')
+    );
+    
+    const stateComponent = result.address_components.find((component: any) => 
+      component.types.includes('administrative_area_level_1')
+    );
+    
+    // Devolver el nombre más específico disponible
+    if (cityComponent) {
+      return cityComponent.long_name;
+    } else if (townComponent) {
+      return townComponent.long_name;
+    } else if (stateComponent) {
+      return stateComponent.long_name;
+    } else {
+      // Como último recurso, usar la primera parte de la dirección formateada
+      const firstPart = result.formatted_address.split(',')[0].trim();
+      return firstPart || 'Punto en ruta';
+    }
+  }
+  
+  return 'Punto en ruta';
+}
+
+// Función para obtener nombre de ubicación desde Nominatim de forma directa (sin proxy)
+async function getLocationNameFromNominatimDirect(coordinates: Coordinates): Promise<string> {
+  const params = new URLSearchParams({
+    lat: coordinates.lat.toString(),
+    lon: coordinates.lng.toString(),
+    format: 'json',
+    'accept-language': 'es',
+    zoom: '10'
+  });
+
+  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
+    headers: {
+      'Accept-Language': 'es',
+      'User-Agent': 'AURA-Weather-Route-App/1.0 (https://aur-a.netlify.app)',
+      'Accept': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error HTTP: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (data && data.address) {
+    const address = data.address;
+    // Priorizar nombres de ciudades y áreas pobladas
+    const cityName = address.city || 
+                    address.town || 
+                    address.village || 
+                    address.municipality || 
+                    address.suburb ||
+                    address.hamlet ||
+                    address.neighbourhood ||
+                    address.county ||
+                    address.state_district ||
+                    address.state;
+    
+    // Si encontramos un nombre válido, devolverlo
+    if (cityName && cityName.trim()) {
+      return cityName.trim();
+    }
+  }
+  
+  // Si no hay datos válidos, intentar con display_name simplificado
+  if (data && data.display_name) {
+    const parts = data.display_name.split(',');
+    if (parts.length > 0) {
+      const firstPart = parts[0].trim();
+      if (firstPart && firstPart.length > 0) {
+        return firstPart;
+      }
+    }
+  }
+  
+  return 'Punto en ruta';
+}
+
+// Función de mapeo local mejorado para nombres de ciudades conocidas
+function getLocationNameFromLocalMapping(coordinates: Coordinates): string {
+  const { lat, lng } = coordinates;
+  
+  // Mapeo de ciudades conocidas de Colombia con coordenadas aproximadas
+  const knownCities = [
+    { name: 'Bogotá', lat: 4.7110, lng: -74.0721, radius: 0.5 },
+    { name: 'Medellín', lat: 6.2442, lng: -75.5812, radius: 0.3 },
+    { name: 'Cali', lat: 3.4516, lng: -76.5320, radius: 0.3 },
+    { name: 'Barranquilla', lat: 10.9685, lng: -74.7813, radius: 0.3 },
+    { name: 'Cartagena', lat: 10.3910, lng: -75.4794, radius: 0.3 },
+    { name: 'Cúcuta', lat: 7.8939, lng: -72.5078, radius: 0.2 },
+    { name: 'Bucaramanga', lat: 7.1193, lng: -73.1227, radius: 0.2 },
+    { name: 'Pereira', lat: 4.8133, lng: -75.6961, radius: 0.2 },
+    { name: 'Santa Marta', lat: 11.2408, lng: -74.2110, radius: 0.2 },
+    { name: 'Ibagué', lat: 4.4389, lng: -75.2322, radius: 0.2 },
+    { name: 'Pasto', lat: 1.2136, lng: -77.2811, radius: 0.2 },
+    { name: 'Manizales', lat: 5.0700, lng: -75.5138, radius: 0.2 },
+    { name: 'Neiva', lat: 2.9273, lng: -75.2819, radius: 0.2 },
+    { name: 'Villavicencio', lat: 4.1420, lng: -73.6266, radius: 0.2 }
+  ];
+  
+  // Buscar la ciudad más cercana
+  for (const city of knownCities) {
+    const distance = Math.sqrt(
+      Math.pow(lat - city.lat, 2) + Math.pow(lng - city.lng, 2)
+    );
+    
+    if (distance <= city.radius) {
+      return city.name;
+    }
+  }
+  
+  // Si no encuentra una ciudad conocida, usar coordenadas
+  return `Ubicación (${lat.toFixed(2)}, ${lng.toFixed(2)})`;
 }
